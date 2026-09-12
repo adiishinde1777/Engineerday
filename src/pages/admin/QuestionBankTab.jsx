@@ -132,9 +132,13 @@ export default function QuestionBankTab() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const cleanOptions = Array.isArray(formData.options) 
+        ? formData.options.map(o => String(o || '').trim()).filter(Boolean)
+        : [];
+
       const payload = {
         ...formData,
-        options: formData.type === 'Multiple Choice' ? formData.options.filter(o => o.trim()) : formData.options
+        options: cleanOptions
       };
 
       if (editingId) {
@@ -260,6 +264,31 @@ export default function QuestionBankTab() {
                   <span>•</span>
                   <span>Base: {q.base_points} pts</span>
                 </div>
+
+                {/* Live Options Chips */}
+                {q.options && q.options.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1.5">
+                    {q.options.map((opt, idx) => {
+                      if (!opt || !String(opt).trim()) return null;
+                      const letter = ['A', 'B', 'C', 'D'][idx] || `${idx + 1}`;
+                      const isCorrect = String(opt).trim().toLowerCase() === String(q.correct_answer).trim().toLowerCase();
+                      return (
+                        <span 
+                          key={idx} 
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-mono border flex items-center gap-1 ${
+                            isCorrect 
+                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/60 font-bold shadow-sm shadow-emerald-950' 
+                              : 'bg-slate-950 text-slate-300 border-slate-800'
+                          }`}
+                        >
+                          <span className={isCorrect ? 'text-emerald-400 font-bold' : 'text-cyan-400'}>{letter}:</span>
+                          <span>{opt}</span>
+                          {isCorrect && <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0 ml-0.5" />}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 sm:self-center flex-shrink-0">
@@ -376,10 +405,17 @@ export default function QuestionBankTab() {
                 </div>
               </div>
 
-              {/* Options for MCQ */}
-              {formData.type === 'Multiple Choice' && (
+              {/* Options for Multiple Choice / Quizzes */}
+              {(formData.game === 'brain' || formData.type !== 'Text Answer') && (
                 <div className="space-y-2 p-3 rounded-xl bg-slate-950 border border-slate-800">
-                  <label className="text-slate-300 font-mono">Options (A, B, C, D)</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-mono font-semibold">
+                      Multiple Choice Options (A, B, C, D)
+                    </label>
+                    <span className="text-[10px] text-cyan-400 font-mono">
+                      Displayed live on participant screens
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     {['A', 'B', 'C', 'D'].map((letter, idx) => (
                       <div key={idx} className="flex items-center gap-2">
@@ -388,16 +424,41 @@ export default function QuestionBankTab() {
                           type="text"
                           value={formData.options[idx] || ''}
                           onChange={(e) => {
-                            const newOpts = [...formData.options];
+                            const newOpts = [...(formData.options || ['', '', '', ''])];
                             newOpts[idx] = e.target.value;
                             setFormData({ ...formData, options: newOpts });
                           }}
                           placeholder={`Option ${letter}`}
-                          className="flex-1 p-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs"
+                          className="flex-1 p-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs focus:border-cyan-400"
                         />
                       </div>
                     ))}
                   </div>
+                  {/* Quick Click to set Correct Answer */}
+                  {formData.options && formData.options.some(o => o && o.trim()) && (
+                    <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-mono">Click to set correct answer:</span>
+                      {formData.options.map((opt, idx) => {
+                        if (!opt || !opt.trim()) return null;
+                        const letter = ['A', 'B', 'C', 'D'][idx];
+                        const isMatch = formData.correct_answer === opt.trim();
+                        return (
+                          <button
+                            type="button"
+                            key={idx}
+                            onClick={() => setFormData({ ...formData, correct_answer: opt.trim() })}
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all ${
+                              isMatch 
+                                ? 'bg-emerald-950 text-emerald-300 border-emerald-500 font-bold' 
+                                : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+                            }`}
+                          >
+                            {letter}: {opt.substring(0, 15)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -15,10 +15,27 @@ export function setupSocketIO(io) {
     // Join game room
     socket.on('join_game', (game) => {
       socket.join(`game_${game}`);
-      // Send current session state
+      // Send current session state with question and team
       const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
       if (session) {
-        socket.emit('session_state', session);
+        let question = null;
+        if (session.current_question_id) {
+          const rawQ = db.prepare('SELECT * FROM questions WHERE id = ?').get(session.current_question_id);
+          if (rawQ) {
+            let opts = [];
+            try {
+              opts = typeof rawQ.options_json === 'string' ? JSON.parse(rawQ.options_json) : (rawQ.options_json || []);
+            } catch {
+              opts = [];
+            }
+            question = { ...rawQ, options: opts };
+          }
+        }
+        let team = null;
+        if (session.current_team_id) {
+          team = db.prepare('SELECT * FROM teams WHERE id = ?').get(session.current_team_id);
+        }
+        socket.emit('session_state', { session, question, team });
       }
     });
 
@@ -53,7 +70,16 @@ export function broadcastSessionState(game) {
     const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
     let question = null;
     if (session && session.current_question_id) {
-      question = db.prepare('SELECT * FROM questions WHERE id = ?').get(session.current_question_id);
+      const rawQ = db.prepare('SELECT * FROM questions WHERE id = ?').get(session.current_question_id);
+      if (rawQ) {
+        let opts = [];
+        try {
+          opts = typeof rawQ.options_json === 'string' ? JSON.parse(rawQ.options_json) : (rawQ.options_json || []);
+        } catch {
+          opts = [];
+        }
+        question = { ...rawQ, options: opts };
+      }
     }
     let team = null;
     if (session && session.current_team_id) {

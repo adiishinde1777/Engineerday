@@ -47,7 +47,7 @@ router.post('/', requireAdmin, (req, res) => {
     name.trim(),
     designation.trim(),
     department.trim(),
-    profile_image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    profile_image || '',
     description || '',
     position_role || 'Faculty Member',
     new Date().toISOString()
@@ -73,16 +73,18 @@ router.put('/:id', requireAdmin, (req, res) => {
     return res.status(404).json({ success: false, message: 'Faculty member not found' });
   }
 
+  const newImage = profile_image !== undefined ? profile_image : existing.profile_image;
+
   db.prepare(`
     UPDATE faculty SET
       name = coalesce(?, name),
       designation = coalesce(?, designation),
       department = coalesce(?, department),
-      profile_image = coalesce(?, profile_image),
+      profile_image = ?,
       description = coalesce(?, description),
       position_role = coalesce(?, position_role)
     WHERE id = ?
-  `).run(name, designation, department, profile_image, description, position_role, req.params.id);
+  `).run(name, designation, department, newImage, description, position_role, req.params.id);
 
   return res.json({ success: true, message: 'Faculty member updated successfully' });
 });

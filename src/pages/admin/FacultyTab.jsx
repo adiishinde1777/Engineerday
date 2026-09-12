@@ -10,9 +10,12 @@ import {
   RefreshCw, 
   Search, 
   ShieldCheck,
-  Crown
+  Crown,
+  Camera,
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
-import { api } from '../../utils/api';
+import { api, getAuthToken } from '../../utils/api';
 
 export default function FacultyTab() {
   const [faculty, setFaculty] = useState([]);
@@ -72,6 +75,38 @@ export default function FacultyTab() {
     setShowModal(true);
   };
 
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const token = getAuthToken();
+      const body = new FormData();
+      body.append('image', file);
+      const res = await fetch('/api/faculty/upload', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        setFormData(prev => ({ ...prev, profile_image: data.imageUrl }));
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => setFormData(prev => ({ ...prev, profile_image: reader.result }));
+        reader.readAsDataURL(file);
+      }
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => setFormData(prev => ({ ...prev, profile_image: reader.result }));
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleOpenEdit = (f) => {
     setEditingId(f.id);
     setFormData({
@@ -79,7 +114,7 @@ export default function FacultyTab() {
       designation: f.designation,
       department: f.department || 'Electronics Engineering (VLSI Design & Technology)',
       position_role: f.position_role || 'Faculty Member',
-      profile_image: '',
+      profile_image: f.profile_image || '',
       description: f.description || ''
     });
     setShowModal(true);
@@ -171,11 +206,26 @@ export default function FacultyTab() {
               } overflow-hidden flex flex-col justify-between shadow-lg hover:border-cyan-500/40 transition-all`}
             >
               <div className="p-5 flex items-start gap-4">
-                {/* Monogram Avatar (No Profile Pic) */}
+                {/* Profile Picture or Monogram Avatar */}
                 <div className={`w-14 h-14 rounded-2xl ${
                   isHOD ? 'bg-gradient-to-tr from-amber-400 to-cyan-400' : 'bg-gradient-to-tr from-cyan-600 to-indigo-600'
-                } p-[1.5px] flex-shrink-0`}>
-                  <div className="w-full h-full bg-slate-950 rounded-[14px] flex flex-col items-center justify-center">
+                } p-[1.5px] flex-shrink-0 overflow-hidden relative group`}>
+                  {f.profile_image ? (
+                    <img
+                      src={f.profile_image}
+                      alt={f.name}
+                      className="w-full h-full object-cover rounded-[14px]"
+                      onError={(e) => {
+                        // If image fails to load, hide image and show initials
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.nextElementSibling;
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className={`w-full h-full bg-slate-950 rounded-[14px] flex flex-col items-center justify-center ${f.profile_image ? 'hidden' : 'flex'}`}
+                  >
                     {isHOD ? <Crown className="w-3.5 h-3.5 text-amber-400 mb-0.5" /> : null}
                     <span className="font-mono font-black text-xs sm:text-sm text-cyan-300">
                       {getInitials(f.name)}
@@ -285,6 +335,86 @@ export default function FacultyTab() {
                   placeholder="e.g. Head of Department (HOD) & Patron / Faculty Convener"
                   className="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono"
                 />
+              </div>
+
+              {/* Profile Picture Upload & Preview */}
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-mono font-semibold flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-cyan-400" />
+                    Faculty Profile Picture
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">JPG, PNG or WebP</span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Photo Preview or Monogram Preview */}
+                  <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-cyan-500/40 p-[1.5px] relative shrink-0 overflow-hidden flex items-center justify-center">
+                    {formData.profile_image ? (
+                      <>
+                        <img
+                          src={formData.profile_image}
+                          alt="Preview"
+                          className="w-full h-full object-cover rounded-[14px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, profile_image: '' })}
+                          className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full p-1 shadow-md hover:bg-rose-500"
+                          title="Remove Photo"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-500 text-center">
+                        <ImageIcon className="w-6 h-6 mb-1 text-slate-600" />
+                        <span className="text-[9px] font-mono">No Photo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Actions */}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <label className={`px-3 py-1.5 rounded-xl font-bold text-xs bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 cursor-pointer transition-all ${
+                        uploadingImage ? 'opacity-50 cursor-wait' : ''
+                      }`}>
+                        {uploadingImage ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Camera className="w-3.5 h-3.5" />
+                        )}
+                        <span>{uploadingImage ? 'Uploading...' : 'Choose Photo File'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          disabled={uploadingImage}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {formData.profile_image && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, profile_image: '' })}
+                          className="px-2.5 py-1.5 rounded-xl text-xs font-mono text-rose-400 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30"
+                        >
+                          Remove Photo
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      value={formData.profile_image}
+                      onChange={(e) => setFormData({ ...formData, profile_image: e.target.value })}
+                      placeholder="Or paste direct image URL (https://...)"
+                      className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>

@@ -50,6 +50,22 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   const isTimeUp = session?.status === 'TIME_UP' || timerRemaining <= 0;
   const isRunning = session?.status === 'RUNNING' && !isTimeUp;
 
+  // Robust options extraction from array or options_json string
+  const optionsList = (() => {
+    if (!question) return [];
+    if (Array.isArray(question.options) && question.options.length > 0) {
+      return question.options;
+    }
+    if (typeof question.options_json === 'string') {
+      try {
+        const parsed = JSON.parse(question.options_json);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    if (Array.isArray(question.options_json)) return question.options_json;
+    return [];
+  })();
+
   const handleOptionSelect = async (option) => {
     if (!isRunning || hasSubmitted || isSubmitting || !selectedTeamId || !question) return;
 
@@ -212,9 +228,9 @@ export default function EngineersBrainPage({ setCurrentPage }) {
           </div>
 
           {/* Options Matrix (A, B, C, D) or Text Input */}
-          {question.options && question.options.length > 0 ? (
+          {optionsList.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {question.options.map((opt, idx) => {
+              {optionsList.map((opt, idx) => {
                 const label = String.fromCharCode(65 + idx); // A, B, C, D
                 const isSelected = selectedOption === opt;
                 const isLocked = isTimeUp || hasSubmitted;

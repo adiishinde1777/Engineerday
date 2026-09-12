@@ -41,10 +41,14 @@ export default function RegistrationsTab() {
     registration_status: 'VERIFIED'
   });
 
-  // Import CSV Modal
+  // Import CSV & Google Forms Modal
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importTab, setImportTab] = useState('upload'); // 'upload' | 'paste' | 'live'
   const [importText, setImportText] = useState('');
+  const [fileSelectedName, setFileSelectedName] = useState('');
+  const [parsedPreview, setParsedPreview] = useState([]);
   const [importResult, setImportResult] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   // Google Forms API Modal
   const [showGoogleFormModal, setShowGoogleFormModal] = useState(false);
@@ -186,74 +190,135 @@ export default function RegistrationsTab() {
     }
   };
 
-  // Google Form CSV parser
-  const handleCSVImport = async () => {
-    if (!importText.trim()) return;
-    try {
-      const lines = importText.trim().split(/\r?\n/);
-      if (lines.length < 2) {
-        alert('CSV must contain a header row and at least one data row');
-        return;
+  // Flexible CSV and TSV parser for Google Form exports
+  const parseRawContentToTeams = (rawText) => {
+    if (!rawText || !rawText.trim()) return [];
+    const lines = rawText.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 2) return [];
+
+    // Auto-detect delimiter: check first line for tabs, semicolons or commas
+    const firstLine = lines[0];
+    let delimiter = ',';
+    if (firstLine.includes('\t') && (firstLine.split('\t').length >= firstLine.split(',').length)) {
+      delimiter = '\t';
+    } else if (firstLine.includes(';') && (firstLine.split(';').length > firstLine.split(',').length)) {
+      delimiter = ';';
+    }
+
+    const parseLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === delimiter && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      return result;
+    };
+
+    const headers = parseLine(lines[0]).map(h => h.toLowerCase().trim());
+    
+    // Find column index by checking keywords
+    const findColIdx = (keywords) => {
+      for (let idx = 0; idx < headers.length; idx++) {
+        const h = headers[idx];
+        for (const kw of keywords) {
+          if (h.includes(kw.toLowerCase())) return idx;
+        }
+      }
+      return -1;
+    };
+
+    const teamNameIdx = findColIdx(['team name', 'team_name', 'squad name', 'team', 'संघ नाव', 'ग्रुप', 'नाव']);
+    const gameIdx = findColIdx(['game', 'competition', 'event', 'स्पर्धा']);
+    const captainIdx = findColIdx(['captain', 'leader', 'head', 'full name', 'नाव 1', 'participant 1']);
+    const m1Idx = findColIdx(['member 1', 'member1', 'captain', 'leader', 'नाव 1']);
+    const m2Idx = findColIdx(['member 2', 'member2', 'नाव 2']);
+    const m3Idx = findColIdx(['member 3', 'member3', 'नाव 3']);
+    const contactIdx = findColIdx(['contact', 'phone', 'mobile', 'whatsapp', 'number', 'संपर्क', 'मोबाईल']);
+
+    const parsed = [];
+    for (let i = 1; i < lines.length; i++) {
+      const vals = parseLine(lines[i]);
+      if (!vals || vals.length === 0 || vals.every(v => !v)) continue;
+
+      let teamName = (teamNameIdx !== -1 ? vals[teamNameIdx] : vals[1] || vals[0] || '').trim();
+      const rawGame = (gameIdx !== -1 ? vals[gameIdx] : vals[2] || '').toLowerCase();
+      const game = rawGame.includes('pic') ? 'pictionary' : 'brain';
+
+      const captain = (captainIdx !== -1 ? vals[captainIdx] : vals[3] || vals[1] || '').trim() || 'Captain';
+      const m1 = (m1Idx !== -1 ? vals[m1Idx] : vals[3] || captain).trim() || captain;
+      const m2 = (m2Idx !== -1 ? vals[m2Idx] : vals[4] || 'Member 2').trim() || 'Member 2';
+      const m3 = (m3Idx !== -1 ? vals[m3Idx] : vals[5] || 'Member 3').trim() || 'Member 3';
+      const contact = (contactIdx !== -1 ? vals[contactIdx] : vals[6] || 'N/A').trim() || 'N/A';
+
+      if (!teamName && captain && captain !== 'Captain') {
+        teamName = `${captain}'s Team`;
       }
 
-      // Simple CSV line splitter that handles quotes
-      const parseCSVLine = (line) => {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
-            result.push(current.trim().replace(/^"|"$/g, ''));
-            current = '';
-          } else {
-            current += char;
-          }
-        }
-        result.push(current.trim().replace(/^"|"$/g, ''));
-        return result;
-      };
-
-      const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
-      
-      const parsedTeams = [];
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const vals = parseCSVLine(lines[i]);
-        const obj = {};
-        headers.forEach((h, idx) => {
-          obj[h] = vals[idx] || '';
+      if (teamName) {
+        parsed.push({
+          team_name: teamName,
+          game,
+          captain,
+          member1: m1,
+          member2: m2,
+          member3: m3,
+          contact
         });
-
-        // Smart mapping for typical Google Form columns
-        const teamName = obj['team name'] || obj['team_name'] || obj['team'] || vals[1] || '';
-        const game = (obj['game'] || obj['competition'] || vals[2] || 'brain').toLowerCase().includes('pic') ? 'pictionary' : 'brain';
-        const m1 = obj['member 1'] || obj['captain'] || obj['member 1 name'] || vals[3] || '';
-        const m2 = obj['member 2'] || obj['member 2 name'] || vals[4] || 'Member 2';
-        const m3 = obj['member 3'] || obj['member 3 name'] || vals[5] || 'Member 3';
-        const captain = obj['captain'] || m1;
-        const contact = obj['contact'] || obj['phone'] || obj['mobile'] || vals[6] || 'N/A';
-
-        if (teamName) {
-          parsedTeams.push({
-            team_name: teamName,
-            game,
-            captain,
-            member1: m1 || captain,
-            member2: m2,
-            member3: m3,
-            contact
-          });
-        }
       }
+    }
+    return parsed;
+  };
 
-      const res = await api.importTeams(parsedTeams);
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileSelectedName(file.name);
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target.result || '';
+      setImportText(content);
+      const parsed = parseRawContentToTeams(content);
+      setParsedPreview(parsed);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleTextChange = (text) => {
+    setImportText(text);
+    setImportResult(null);
+    const parsed = parseRawContentToTeams(text);
+    setParsedPreview(parsed);
+  };
+
+  const executeImport = async () => {
+    const teamsToImport = parsedPreview.length > 0 ? parsedPreview : parseRawContentToTeams(importText);
+    if (teamsToImport.length === 0) {
+      alert('No valid team rows found to import. Please check your CSV file or pasted text.');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const res = await api.importTeams(teamsToImport);
       setImportResult(res);
       fetchTeams();
     } catch (err) {
       alert(err.message || 'Import failed');
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -282,11 +347,15 @@ export default function RegistrationsTab() {
           </button>
 
           <button
-            onClick={() => setShowImportModal(true)}
-            className="px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5"
+            onClick={() => {
+              setShowImportModal(true);
+              setImportTab('upload');
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/25"
+            title="Import responses directly from your Google Form"
           >
-            <Upload className="w-3.5 h-3.5" />
-            Import CSV
+            <FileSpreadsheet className="w-4 h-4 text-slate-950" />
+            Import Google Form Entries
           </button>
 
           <button
@@ -557,56 +626,254 @@ export default function RegistrationsTab() {
         </div>
       )}
 
-      {/* CSV Import Modal */}
+      {/* Google Form Responses Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-xl bg-slate-900 border border-cyan-500/30 rounded-2xl p-6 space-y-4">
-            <h3 className="text-xl font-bold text-white font-heading flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-cyan-400" />
-              Import Google Form CSV Data
-            </h3>
-            <p className="text-xs text-slate-400">
-              Paste the exported CSV text from your Google Form responses sheet. The system will automatically parse fields and detect duplicate team names.
-            </p>
-
-            <textarea
-              rows={8}
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="Timestamp,Team Name,Game,Member 1,Member 2,Member 3,Captain,Contact&#10;2026-09-12,Neural Knights,brain,Arjun,Riya,Karan,Arjun,+91 9811122233"
-              className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
-            />
-
-            {importResult && (
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono space-y-1">
-                <p className="text-emerald-400 font-bold">{importResult.message}</p>
-                {importResult.duplicates && importResult.duplicates.length > 0 && (
-                  <p className="text-amber-400">
-                    Skipped duplicates: {importResult.duplicates.join(', ')}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 sm:p-7 space-y-5 max-h-[92vh] overflow-y-auto shadow-2xl">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-heading">
+                    Import Google Form Responses
+                  </h3>
+                  <p className="text-xs font-mono text-slate-400">
+                    Add entries from your official Google Form directly into the database.
                   </p>
-                )}
+                </div>
               </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => {
                   setShowImportModal(false);
                   setImportResult(null);
+                  setParsedPreview([]);
+                  setFileSelectedName('');
+                  setImportText('');
                 }}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs"
+                className="text-slate-400 hover:text-white text-lg font-bold px-2 py-1"
               >
-                Close
+                ✕
+              </button>
+            </div>
+
+            {/* Google Form Link Banner */}
+            <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3 text-xs font-mono">
+              <div className="flex items-center gap-2 truncate">
+                <span className="text-slate-400">Official Form:</span>
+                <span className="text-cyan-400 font-bold truncate">https://forms.gle/Wz7TfiFHX1hNsakb8</span>
+              </div>
+              <a
+                href="https://forms.gle/Wz7TfiFHX1hNsakb8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 flex items-center gap-1 shrink-0 text-[11px]"
+              >
+                <span>Open Form</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {/* Tabs: File Upload vs Copy Paste */}
+            <div className="flex border-b border-slate-800 gap-2">
+              <button
+                type="button"
+                onClick={() => setImportTab('upload')}
+                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 ${
+                  importTab === 'upload'
+                    ? 'border-cyan-400 text-cyan-300'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Upload .CSV File
               </button>
               <button
                 type="button"
-                onClick={handleCSVImport}
-                className="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
+                onClick={() => setImportTab('paste')}
+                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 ${
+                  importTab === 'paste'
+                    ? 'border-cyan-400 text-cyan-300'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
               >
-                Parse & Import
+                <Copy className="w-3.5 h-3.5" />
+                Paste Text / Spreadsheet
               </button>
             </div>
+
+            {/* Tab 1: File Upload */}
+            {importTab === 'upload' && (
+              <div className="space-y-3">
+                <label className="block cursor-pointer">
+                  <div className="border-2 border-dashed border-slate-700 hover:border-cyan-500/60 rounded-2xl p-6 text-center bg-slate-950/60 hover:bg-slate-950 transition-all space-y-2">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold text-white">
+                        {fileSelectedName ? fileSelectedName : 'Click to select Google Form CSV File'}
+                      </span>
+                      <p className="text-xs text-slate-400 font-mono mt-1">
+                        Download responses from Google Sheets / Form as .csv and select it here
+                      </p>
+                    </div>
+                    <span className="inline-block px-3 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-mono text-xs font-semibold">
+                      {fileSelectedName ? 'Change File' : 'Browse Computer (.csv)'}
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </label>
+
+                <p className="text-[11px] font-mono text-slate-500">
+                  💡 <strong>How to get CSV:</strong> Open your Google Form ➔ <strong>Responses</strong> ➔ click the green Sheets icon (or 3 dots ➔ <em>Download responses (.csv)</em>).
+                </p>
+              </div>
+            )}
+
+            {/* Tab 2: Paste Content */}
+            {importTab === 'paste' && (
+              <div className="space-y-2">
+                <label className="text-xs font-mono text-slate-300">
+                  Paste rows directly from Google Sheets or CSV:
+                </label>
+                <textarea
+                  rows={6}
+                  value={importText}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  placeholder="Timestamp,Team Name,Game,Member 1,Member 2,Member 3,Captain,Contact&#10;2026-09-12,VLSI Knights,brain,Aditya,Rohan,Pooja,Aditya,9822011223"
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+            )}
+
+            {/* Parsed Preview Table */}
+            {parsedPreview.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Detected {parsedPreview.length} Teams Ready to Import:
+                  </span>
+                  <span className="text-slate-400">Review before saving</span>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="sticky top-0 bg-slate-900 text-slate-400 text-[10px] uppercase border-b border-slate-800">
+                      <tr>
+                        <th className="p-2">#</th>
+                        <th className="p-2">Team Name</th>
+                        <th className="p-2">Game</th>
+                        <th className="p-2">Captain</th>
+                        <th className="p-2">Members</th>
+                        <th className="p-2">Contact</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                      {parsedPreview.slice(0, 50).map((t, idx) => (
+                        <tr key={idx} className="hover:bg-slate-900/50">
+                          <td className="p-2 text-slate-500">{idx + 1}</td>
+                          <td className="p-2 font-bold text-white">{t.team_name}</td>
+                          <td className="p-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase ${
+                              t.game === 'brain' ? 'bg-cyan-950 text-cyan-300' : 'bg-purple-950 text-purple-300'
+                            }`}>
+                              {t.game}
+                            </span>
+                          </td>
+                          <td className="p-2 text-cyan-300">{t.captain}</td>
+                          <td className="p-2 text-slate-400 text-[11px]">
+                            {[t.member1, t.member2, t.member3].filter(Boolean).join(', ')}
+                          </td>
+                          <td className="p-2 text-slate-400 text-[11px]">{t.contact}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {parsedPreview.length > 50 && (
+                  <p className="text-[10px] text-slate-500 font-mono text-right">
+                    Showing first 50 of {parsedPreview.length} entries
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Import Status Alert */}
+            {importResult && (
+              <div className={`p-4 rounded-2xl border text-xs font-mono space-y-1 ${
+                importResult.success
+                  ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                  : 'bg-rose-950/80 border-rose-500 text-rose-300'
+              }`}>
+                <p className="font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  {importResult.message}
+                </p>
+                {importResult.duplicates && importResult.duplicates.length > 0 && (
+                  <p className="text-amber-300 text-[11px]">
+                    ⚠️ Skipped duplicates ({importResult.duplicates.length}): {importResult.duplicates.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setShowGoogleFormModal(true);
+                }}
+                className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              >
+                <Key className="w-3.5 h-3.5" />
+                Want real-time automatic sync? Use Webhook
+              </button>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportResult(null);
+                    setParsedPreview([]);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs hover:text-white"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={executeImport}
+                  disabled={importLoading || (parsedPreview.length === 0 && !importText.trim())}
+                  className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md shadow-cyan-500/25"
+                >
+                  {importLoading ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {parsedPreview.length > 0 
+                      ? `Import ${parsedPreview.length} Google Form Entries` 
+                      : 'Parse & Import Entries'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

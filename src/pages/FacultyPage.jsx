@@ -110,9 +110,21 @@ export default function FacultyPage() {
           {hod && (
             <div className="glass-card p-6 sm:p-8 rounded-3xl border-2 border-cyan-500/50 bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/40 relative overflow-hidden shadow-2xl shadow-cyan-500/10">
               <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
-                {/* Monogram Avatar (No Profile Pic) */}
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-sky-400 p-[2.5px] shadow-xl shadow-cyan-500/25 flex-shrink-0">
-                  <div className="w-full h-full bg-slate-950 rounded-[22px] flex flex-col items-center justify-center">
+                {/* Profile Picture or Monogram Avatar */}
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-sky-400 p-[2.5px] shadow-xl shadow-cyan-500/25 flex-shrink-0 overflow-hidden relative">
+                  {hod.profile_image ? (
+                    <img
+                      src={hod.profile_image}
+                      alt={hod.name}
+                      className="w-full h-full object-cover rounded-[22px]"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.nextElementSibling;
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-full h-full bg-slate-950 rounded-[22px] flex flex-col items-center justify-center ${hod.profile_image ? 'hidden' : 'flex'}`}>
                     <Crown className="w-6 h-6 text-amber-400 mb-1" />
                     <span className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-white font-mono">
                       {getInitials(hod.name)}
@@ -160,9 +172,21 @@ export default function FacultyPage() {
                   className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 hover:border-cyan-500/40 transition-all duration-300 flex flex-col justify-between space-y-4 group shadow-lg"
                 >
                   <div className="flex items-start gap-4">
-                    {/* Monogram Avatar (No Profile Pic) */}
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 p-[1.5px] flex-shrink-0 group-hover:scale-105 transition-transform">
-                      <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center font-mono font-black text-sm sm:text-base text-cyan-300">
+                    {/* Profile Picture or Monogram Avatar */}
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 p-[1.5px] flex-shrink-0 group-hover:scale-105 transition-transform overflow-hidden relative">
+                      {f.profile_image ? (
+                        <img
+                          src={f.profile_image}
+                          alt={f.name}
+                          className="w-full h-full object-cover rounded-[14px]"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.nextElementSibling;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center font-mono font-black text-sm sm:text-base text-cyan-300 ${f.profile_image ? 'hidden' : 'flex'}`}>
                         {getInitials(f.name)}
                       </div>
                     </div>
