@@ -23,7 +23,6 @@ export default function Navbar({ currentPage, setCurrentPage }) {
 
   const navItems = [
     { id: 'home', label: 'Home' },
-    { id: 'about', label: 'About Event' },
     { id: 'games', label: 'Games' },
     { id: 'faculty', label: 'Department Faculty' },
     { id: 'register', label: 'Register' },

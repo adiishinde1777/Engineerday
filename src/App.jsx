@@ -6,7 +6,6 @@ import Footer from './components/Footer';
 import ProjectorScoreboard from './components/ProjectorScoreboard';
 
 import HomePage from './pages/HomePage';
-import AboutEventPage from './pages/AboutEventPage';
 import GamesPage from './pages/GamesPage';
 import EngineersBrainPage from './pages/EngineersBrainPage';
 import PictionaryPage from './pages/PictionaryPage';
@@ -64,9 +63,6 @@ function MainApp() {
       <main className="flex-1">
         {currentPage === 'home' && (
           <HomePage setCurrentPage={setCurrentPage} eventSettings={eventSettings} />
-        )}
-        {currentPage === 'about' && (
-          <AboutEventPage setCurrentPage={setCurrentPage} eventSettings={eventSettings} />
         )}
         {currentPage === 'games' && (
           <GamesPage setCurrentPage={setCurrentPage} />

@@ -51,11 +51,6 @@ export default function Footer({ setCurrentPage, eventSettings }) {
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage('about')} className="hover:text-cyan-400 transition-colors">
-                  About Event & Guidelines
-                </button>
-              </li>
-              <li>
                 <button onClick={() => setCurrentPage('games')} className="hover:text-cyan-400 transition-colors">
                   Games & Rules
                 </button>
