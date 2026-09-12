@@ -277,32 +277,53 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {topTeams.map((team, idx) => (
-            <div
-              key={team.id}
-              onClick={() => setCurrentPage('live-dashboard')}
-              className="glass-card p-4 rounded-2xl border border-slate-800 hover:border-cyan-500/40 cursor-pointer group"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="w-8 h-8 rounded-lg bg-slate-800 text-cyan-400 font-mono font-bold flex items-center justify-center text-xs">
-                  #{idx + 1}
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-400 uppercase">
-                  {team.game}
-                </span>
+        {topTeams.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {topTeams.map((team, idx) => (
+              <div
+                key={team.id}
+                onClick={() => setCurrentPage('live-dashboard')}
+                className="glass-card p-4 rounded-2xl border border-slate-800 hover:border-cyan-500/40 cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="w-8 h-8 rounded-lg bg-slate-800 text-cyan-400 font-mono font-bold flex items-center justify-center text-xs">
+                    #{idx + 1}
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-400 uppercase">
+                    {team.game}
+                  </span>
+                </div>
+                <h4 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-1">
+                  {team.team_name}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">Capt: {team.captain}</p>
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-mono">Score</span>
+                  <span className="text-lg font-black text-cyan-300 font-mono">{team.score} Pts</span>
+                </div>
               </div>
-              <h4 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-1">
-                {team.team_name}
-              </h4>
-              <p className="text-xs text-slate-400 mt-0.5">Capt: {team.captain}</p>
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="text-xs text-slate-400 font-mono">Score</span>
-                <span className="text-lg font-black text-cyan-300 font-mono">{team.score} Pts</span>
-              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="glass-card p-8 rounded-3xl border border-slate-800 text-center space-y-3 bg-slate-900/60 max-w-xl mx-auto">
+            <Trophy className="w-10 h-10 text-slate-600 mx-auto" />
+            <h4 className="text-base font-bold text-white font-heading">
+              Ready for Showdown
+            </h4>
+            <p className="text-xs font-mono text-slate-400 leading-relaxed">
+              No squads registered yet. As participants register for the games, real-time standings and scores will appear here!
+            </p>
+            <div className="pt-2">
+              <button
+                onClick={() => setCurrentPage('register')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all shadow-md shadow-cyan-500/20"
+              >
+                <span>Register Squad Now</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </section>
 
       {/* Developer Banner */}

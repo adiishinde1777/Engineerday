@@ -13,7 +13,7 @@ import {
   RefreshCw,
   FileSpreadsheet
 } from 'lucide-react';
-import { api } from '../../utils/api';
+import { api, getAuthToken } from '../../utils/api';
 
 export default function RegistrationsTab() {
   const [teams, setTeams] = useState([]);
@@ -21,6 +21,7 @@ export default function RegistrationsTab() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Manual Add Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -88,6 +89,34 @@ export default function RegistrationsTab() {
       fetchTeams();
     } catch (err) {
       alert(err.message || 'Failed to clear seed teams');
+    }
+  };
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`/api/export/registrations?token=${encodeURIComponent(token || '')}`, {
+        method: 'GET',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to download registrations CSV');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', 'Engineers_Day_2026_Registrations.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert('Download Error: ' + err.message);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -206,14 +235,19 @@ export default function RegistrationsTab() {
             Import CSV
           </button>
 
-          <a
-            href="/api/export/registrations"
-            download
-            className="px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5"
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={exporting}
+            className="px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <Download className="w-3.5 h-3.5" />
-            Export CSV
-          </a>
+            {exporting ? (
+              <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
 
           <button
             onClick={() => setShowAddModal(true)}

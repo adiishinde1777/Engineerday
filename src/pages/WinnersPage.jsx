@@ -32,6 +32,25 @@ export default function WinnersPage({ eventSettings }) {
     const second = teams[1] || null;
     const third = teams[2] || null;
 
+    if (!first) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+              {icon}
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white font-heading">{gameTitle}</h2>
+              <p className="text-xs font-mono text-slate-400">Tournament Standing</p>
+            </div>
+          </div>
+          <div className="glass-card p-8 rounded-3xl border border-slate-800 text-center text-slate-400 font-mono text-xs bg-slate-900/60">
+            No winners finalized yet for {gameTitle}. Once teams compete and scores are submitted, the podium champions will be crowned here live!
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">

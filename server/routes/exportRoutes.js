@@ -12,7 +12,8 @@ function toCSV(headers, rows) {
       return `"${val.replace(/"/g, '""')}"`;
     }).join(',');
   });
-  return [headerLine, ...rowLines].join('\r\n');
+  // \uFEFF Byte Order Mark ensures Microsoft Excel & Google Sheets open unicode/symbols correctly
+  return '\uFEFF' + [headerLine, ...rowLines].join('\r\n');
 }
 
 // Export Registrations CSV
