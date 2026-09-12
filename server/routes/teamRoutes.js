@@ -210,4 +210,83 @@ router.post('/import', requireAdmin, (req, res) => {
   });
 });
 
+// Google Forms Webhook with API Key authentication
+router.post('/webhook', (req, res) => {
+  const apiKey = req.headers['x-api-key'] || req.query.apiKey || req.body?.apiKey;
+  const configuredKey = process.env.GOOGLE_FORM_API_KEY || 'engineers_day_google_form_key_2026';
+
+  if (!apiKey || apiKey !== configuredKey) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized: Invalid or missing Google Forms API Key. Provide x-api-key header or apiKey query parameter.'
+    });
+  }
+
+  const body = req.body || {};
+
+  // Case-insensitive flexible key lookup
+  const findVal = (keywords) => {
+    for (const key of Object.keys(body)) {
+      const lowerKey = key.toLowerCase();
+      for (const kw of keywords) {
+        if (lowerKey.includes(kw.toLowerCase())) {
+          return body[key];
+        }
+      }
+    }
+    return '';
+  };
+
+  const teamName = body.team_name || findVal(['team name', 'team_name', 'squad name', 'team']);
+  const gameRaw = body.game || findVal(['game', 'competition', 'event']) || 'brain';
+  const game = String(gameRaw).toLowerCase().includes('pic') ? 'pictionary' : 'brain';
+  const captain = body.captain || findVal(['captain', 'leader', 'head']) || findVal(['member 1', 'member1']) || 'Captain';
+  const member1 = body.member1 || findVal(['member 1', 'member1', 'captain']) || captain;
+  const member2 = body.member2 || findVal(['member 2', 'member2']) || 'Member 2';
+  const member3 = body.member3 || findVal(['member 3', 'member3']) || 'Member 3';
+  const contact = body.contact || findVal(['contact', 'phone', 'mobile', 'whatsapp']) || 'N/A';
+
+  if (!teamName || !String(teamName).trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required field: Team Name. Received fields: ' + Object.keys(body).join(', ')
+    });
+  }
+
+  const cleanName = String(teamName).trim();
+  const existing = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?)').get(cleanName);
+  if (existing) {
+    return res.status(200).json({
+      success: true,
+      message: `Team "${cleanName}" is already registered!`,
+      id: existing.id
+    });
+  }
+
+  const id = `team-gf-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  db.prepare(`
+    INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, registration_status, score, rank, status, is_seed, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'VERIFIED', 0, 999, 'REGISTERED', 0, ?)
+  `).run(
+    id,
+    cleanName,
+    game,
+    String(captain).trim(),
+    String(member1).trim(),
+    String(member2).trim(),
+    String(member3).trim(),
+    String(contact).trim(),
+    new Date().toISOString()
+  );
+
+  updateRanks(game);
+  broadcastScoreboard();
+
+  return res.status(201).json({
+    success: true,
+    message: `Team "${cleanName}" registered successfully via Google Forms Webhook!`,
+    team: { id, team_name: cleanName, game, captain, contact }
+  });
+});
+
 export default router;

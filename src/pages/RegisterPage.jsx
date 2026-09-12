@@ -14,7 +14,7 @@ import {
 import { api } from '../utils/api';
 
 export default function RegisterPage({ eventSettings }) {
-  const googleFormUrl = eventSettings?.googleFormUrl || 'https://docs.google.com/forms';
+  const googleFormUrl = eventSettings?.googleFormUrl || 'https://forms.gle/Wz7TfiFHX1hNsakb8';
   const eventDate = "15 September 2026";
   const [searchTeam, setSearchTeam] = useState('');
   const [searchResult, setSearchResult] = useState(null);

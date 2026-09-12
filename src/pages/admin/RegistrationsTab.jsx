@@ -11,7 +11,12 @@ import {
   Plus, 
   AlertCircle, 
   RefreshCw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ExternalLink,
+  Key,
+  Copy,
+  Check,
+  Zap
 } from 'lucide-react';
 import { api, getAuthToken } from '../../utils/api';
 
@@ -40,6 +45,13 @@ export default function RegistrationsTab() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [importResult, setImportResult] = useState(null);
+
+  // Google Forms API Modal
+  const [showGoogleFormModal, setShowGoogleFormModal] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
+  const [testStatus, setTestStatus] = useState(null);
 
   const fetchTeams = async () => {
     setLoading(true);
@@ -117,6 +129,39 @@ export default function RegistrationsTab() {
       alert('Download Error: ' + err.message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const testGoogleFormWebhook = async () => {
+    setTestLoading(true);
+    setTestStatus(null);
+    try {
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      const res = await fetch('/api/teams/webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'engineers_day_google_form_key_2026'
+        },
+        body: JSON.stringify({
+          apiKey: 'engineers_day_google_form_key_2026',
+          'Team Name': `VLSI Innovators #${randomNum}`,
+          'Game': 'brain',
+          'Captain Name': 'Aditya Shinde',
+          'Member 1': 'Aditya Shinde',
+          'Member 2': 'Rahul Deshmukh',
+          'Member 3': 'Pooja Kulkarni',
+          'Contact': '+91 98220 11223'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Webhook test failed');
+      setTestStatus({ success: true, message: `✅ Webhook Connected! Created sample team: "${data.team?.team_name}"` });
+      fetchTeams();
+    } catch (err) {
+      setTestStatus({ success: false, message: `❌ Connection Failed: ${err.message}` });
+    } finally {
+      setTestLoading(false);
     }
   };
 
@@ -227,6 +272,15 @@ export default function RegistrationsTab() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowGoogleFormModal(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-indigo-950/80 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40 flex items-center gap-1.5 shadow-sm"
+            title="Configure Google Forms live API key and webhook synchronization"
+          >
+            <Key className="w-3.5 h-3.5 text-indigo-400" />
+            Google Forms API
+          </button>
+
           <button
             onClick={() => setShowImportModal(true)}
             className="px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5"
@@ -553,6 +607,192 @@ export default function RegistrationsTab() {
                 Parse & Import
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Forms Live API & Webhook Modal */}
+      {showGoogleFormModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-900 border border-indigo-500/40 rounded-3xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-heading">
+                    Google Forms Live API & Webhook Sync
+                  </h3>
+                  <p className="text-xs font-mono text-slate-400">
+                    Connect your official Google Form directly to the website database in real-time.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGoogleFormModal(false);
+                  setTestStatus(null);
+                }}
+                className="text-slate-400 hover:text-white text-lg font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Official Google Form Link */}
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <span className="text-[11px] font-mono text-slate-400 uppercase font-bold">1. Official Form URL</span>
+              <div className="flex items-center justify-between gap-3">
+                <code className="text-xs font-mono text-cyan-300 break-all">
+                  https://forms.gle/Wz7TfiFHX1hNsakb8
+                </code>
+                <a
+                  href="https://forms.gle/Wz7TfiFHX1hNsakb8"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-mono flex items-center gap-1.5 shrink-0"
+                >
+                  <span>Open Form</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Webhook URL & API Key */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5">
+                <span className="text-[11px] font-mono text-slate-400 uppercase font-bold">2. Webhook Endpoint</span>
+                <code className="text-xs font-mono text-emerald-400 block break-all">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}/api/teams/webhook
+                </code>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono text-slate-400 uppercase font-bold">3. Secret API Key</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('engineers_day_google_form_key_2026');
+                      setCopiedKey(true);
+                      setTimeout(() => setCopiedKey(false), 3000);
+                    }}
+                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  >
+                    {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey ? 'Copied' : 'Copy Key'}</span>
+                  </button>
+                </div>
+                <code className="text-xs font-mono text-indigo-300 block">
+                  engineers_day_google_form_key_2026
+                </code>
+              </div>
+            </div>
+
+            {/* Ready-to-use Google Apps Script */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white font-mono uppercase">
+                  4. Google Apps Script (Auto-Sync on Form Submit)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const scriptCode = `function onFormSubmit(e) {\n  var WEBHOOK_URL = "${window.location.origin}/api/teams/webhook";\n  var API_KEY = "engineers_day_google_form_key_2026";\n  \n  var formResponse = e.response;\n  var itemResponses = formResponse.getItemResponses();\n  var payload = { apiKey: API_KEY };\n  \n  for (var i = 0; i < itemResponses.length; i++) {\n    var item = itemResponses[i];\n    payload[item.getItem().getTitle()] = item.getResponse();\n  }\n  \n  var options = {\n    method: "post",\n    contentType: "application/json",\n    headers: { "x-api-key": API_KEY },\n    payload: JSON.stringify(payload),\n    muteHttpExceptions: true\n  };\n  \n  UrlFetchApp.fetch(WEBHOOK_URL, options);\n}`;
+                    navigator.clipboard.writeText(scriptCode);
+                    setCopiedScript(true);
+                    setTimeout(() => setCopiedScript(false), 3000);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 text-xs font-mono flex items-center gap-1.5"
+                >
+                  {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedScript ? 'Script Copied!' : 'Copy Apps Script'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 overflow-x-auto max-h-44 leading-relaxed">
+{`// Paste into your Google Form -> Script editor:
+function onFormSubmit(e) {
+  var WEBHOOK_URL = "${typeof window !== 'undefined' ? window.location.origin : ''}/api/teams/webhook";
+  var API_KEY = "engineers_day_google_form_key_2026";
+  
+  var formResponse = e.response;
+  var itemResponses = formResponse.getItemResponses();
+  var payload = { apiKey: API_KEY };
+  
+  for (var i = 0; i < itemResponses.length; i++) {
+    var item = itemResponses[i];
+    payload[item.getItem().getTitle()] = item.getResponse();
+  }
+  
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    headers: { "x-api-key": API_KEY },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  
+  UrlFetchApp.fetch(WEBHOOK_URL, options);
+}`}
+              </pre>
+
+              <p className="text-[11px] text-slate-400 font-mono">
+                💡 <strong>How to set up in 60 seconds:</strong> In your Google Form, click the 3 dots ➔ <strong>Script editor</strong> ➔ Paste the code above ➔ Click <strong>Triggers</strong> (clock icon) ➔ <strong>Add Trigger</strong> ➔ Event source: <em>From form</em> ➔ Event type: <em>On form submit</em>.
+              </p>
+            </div>
+
+            {/* Live Test Connection */}
+            <div className="pt-3 border-t border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-white font-mono uppercase">Test API Key & Webhook</h4>
+                  <p className="text-[11px] text-slate-400">Sends a verified test squad directly to verify connectivity.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={testGoogleFormWebhook}
+                  disabled={testLoading}
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md shadow-cyan-500/20"
+                >
+                  {testLoading ? (
+                    <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5" />
+                  )}
+                  <span>Test Connection</span>
+                </button>
+              </div>
+
+              {testStatus && (
+                <div className={`p-3 rounded-xl text-xs font-mono border ${
+                  testStatus.success 
+                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300' 
+                    : 'bg-rose-950/80 border-rose-500 text-rose-300'
+                }`}>
+                  {testStatus.message}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGoogleFormModal(false);
+                  setTestStatus(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs"
+              >
+                Close Settings
+              </button>
+            </div>
+
           </div>
         </div>
       )}

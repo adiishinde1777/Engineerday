@@ -61,7 +61,10 @@ export default function Footer({ setCurrentPage, eventSettings }) {
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage('register')} className="hover:text-cyan-400 transition-colors text-cyan-400 font-medium">
+                <button 
+                  onClick={() => window.open('https://forms.gle/Wz7TfiFHX1hNsakb8', '_blank', 'noopener,noreferrer')} 
+                  className="hover:text-cyan-400 transition-colors text-cyan-400 font-medium cursor-pointer"
+                >
                   Register for Event
                 </button>
               </li>

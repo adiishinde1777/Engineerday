@@ -14,7 +14,8 @@ import {
   Zap, 
   Tv, 
   Code2,
-  ChevronRight
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import { api } from '../utils/api';
@@ -74,11 +75,11 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
           {/* Action Buttons */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             <button
-              onClick={() => setCurrentPage('register')}
-              className="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/50 transition-all flex items-center gap-2"
+              onClick={() => window.open('https://forms.gle/Wz7TfiFHX1hNsakb8', '_blank', 'noopener,noreferrer')}
+              className="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/50 transition-all flex items-center gap-2 cursor-pointer"
             >
               <span>Register for Event</span>
-              <ArrowRight className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4" />
             </button>
 
             <button

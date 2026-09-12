@@ -147,7 +147,7 @@ function seedDefaultData() {
     { key: 'eventSubtitle', value: 'Think. Create. Solve. Engineer the Future.' },
     { key: 'departmentName', value: 'Department of Electronics Engineering (VLSI Design and Technology)' },
     { key: 'eventDescription', value: 'Organized by the Department of Electronics Engineering (VLSI Design and Technology). Celebrating Bharat Ratna Sir M. Visvesvaraya with premier technical showdowns: Engineer’s Brain and Engineering Pictionary.' },
-    { key: 'googleFormUrl', value: 'https://forms.google.com/sample-engineers-day-2026' },
+    { key: 'googleFormUrl', value: 'https://forms.gle/Wz7TfiFHX1hNsakb8' },
     { key: 'eventStatus', value: 'AUTO' }, // AUTO, UPCOMING, LIVE, COMPLETED
     { key: 'footerText', value: 'Engineers’ Day 2026 | Designed & Developed by Aditya Shinde' },
     { key: 'developerName', value: 'Aditya Shinde' },
