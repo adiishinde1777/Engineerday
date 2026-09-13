@@ -19,14 +19,29 @@ import exportRoutes from './routes/exportRoutes.js';
 
 dotenv.config();
 
+process.on('uncaughtException', (err) => {
+  console.error('🔥 [CRITICAL] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 [CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Initialize SQLite DB
-initDB();
+try {
+  initDB();
+  console.log('✅ SQLite database initialized and seeded successfully.');
+} catch (err) {
+  console.error('❌ Failed to initialize SQLite database:', err);
+  process.exit(1);
+}
 
 const app = express();
 const server = http.createServer(app);
+
 
 // Setup Socket.IO
 const io = new SocketIOServer(server, {

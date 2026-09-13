@@ -63,15 +63,21 @@ export function initDB() {
 
     CREATE TABLE IF NOT EXISTS faculty (
       id TEXT PRIMARY KEY,
+      order_index INTEGER DEFAULT 99,
       name TEXT NOT NULL,
       designation TEXT NOT NULL,
       department TEXT NOT NULL,
       profile_image TEXT,
       description TEXT,
       position_role TEXT,
+      is_hod INTEGER DEFAULT 0,
       created_at TEXT NOT NULL
     );
   `);
+
+  try {
+    db.exec('ALTER TABLE faculty ADD COLUMN order_index INTEGER DEFAULT 99;');
+  } catch {}
 
   try {
     db.exec('ALTER TABLE faculty ADD COLUMN position_role TEXT;');
@@ -84,6 +90,7 @@ export function initDB() {
   try {
     db.exec('ALTER TABLE teams ADD COLUMN password_hash TEXT;');
   } catch {}
+
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS questions (
