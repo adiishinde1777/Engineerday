@@ -1,4 +1,5 @@
-const API_BASE = '/api';
+const RAW_API_URL = import.meta.env.VITE_API_URL || '';
+export const API_BASE = RAW_API_URL ? `${RAW_API_URL.replace(/\/$/, '')}/api` : '/api';
 
 export function getAuthToken() {
   return localStorage.getItem('engineers_day_admin_token');
@@ -23,17 +24,40 @@ async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    throw new Error(
+      `Cannot connect to backend: ${err.message || 'Network error'}. Make sure the backend server is running.`
+    );
+  }
 
-  const data = await response.json();
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(
+          'Backend API is not available on this domain. Netlify only hosts static frontend files. Please deploy the full-stack server on Render or set VITE_API_URL.'
+        );
+      }
+      throw new Error(`Server returned HTTP ${response.status}: ${response.statusText}`);
+    }
+    throw new Error('Server returned an unexpected response format.');
+  }
+
   if (!response.ok) {
-    throw new Error(data.message || 'API request failed');
+    throw new Error(data.message || `Request failed with status ${response.status}`);
   }
   return data;
 }
+
 
 export const api = {
   // Auth

@@ -38,11 +38,13 @@ export function SocketProvider({ children }) {
       })
       .catch(() => {});
 
-    // In dev, Vite proxies /socket.io to backend
-    const s = io(window.location.origin, {
+    // Connect to backend (supports custom backend URL when frontend is hosted separately on Netlify)
+    const socketEndpoint = import.meta.env.VITE_API_URL || window.location.origin;
+    const s = io(socketEndpoint, {
       reconnectionAttempts: 10,
       reconnectionDelay: 1000
     });
+
 
     s.on('connect', () => {
       setIsConnected(true);
