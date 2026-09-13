@@ -89,7 +89,7 @@ export default function AdminLayout({ setCurrentPage, eventSettings, onSettingsU
             </div>
             <div>
               <h1 className="text-sm font-black text-white font-heading tracking-wide">
-                ENGINEERS’ DAY
+                ENGINEER'S DAY
               </h1>
               <p className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest">
                 Admin Console

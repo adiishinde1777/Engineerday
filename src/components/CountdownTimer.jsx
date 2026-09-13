@@ -85,7 +85,7 @@ export default function CountdownTimer({ eventDateStr = '2026-09-15T09:00:00', e
     <div className="flex flex-col items-center">
       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-mono uppercase tracking-wider mb-4">
         <Clock className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-        ENGINEERS’ DAY STARTS IN
+        ENGINEER'S DAY STARTS IN
       </div>
       <div className="grid grid-cols-4 gap-2.5 sm:gap-4 max-w-lg w-full">
         {items.map((item, idx) => (

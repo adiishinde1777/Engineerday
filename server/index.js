@@ -59,7 +59,7 @@ app.use('/api/export', exportRoutes);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    event: "Engineers' Day 2026",
+    event: "Engineer's Day 2026",
     developer: 'Aditya Shinde',
     timestamp: new Date().toISOString()
   });
@@ -100,7 +100,7 @@ server.on('error', (err) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`⚡ ENGINEERS' DAY 2026 BACKEND SERVER RUNNING`);
+  console.log(`⚡ ENGINEER'S DAY 2026 BACKEND SERVER RUNNING`);
   console.log(`📡 URL: http://localhost:${PORT}`);
   console.log(`👤 Platform Developed By: Aditya Shinde`);
   console.log(`====================================================`);

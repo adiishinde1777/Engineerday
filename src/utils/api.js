@@ -54,6 +54,7 @@ export const api = {
   },
   getTeam: (id) => request(`/teams/${id}`),
   createTeam: (teamData) => request('/teams', { method: 'POST', body: JSON.stringify(teamData) }),
+  verifySquad: (identifier, password) => request('/teams/verify', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
   updateTeam: (id, teamData) => request(`/teams/${id}`, { method: 'PUT', body: JSON.stringify(teamData) }),
   deleteTeam: (id) => request(`/teams/${id}`, { method: 'DELETE' }),
   clearSeedTeams: () => request('/teams/seed/clear', { method: 'DELETE' }),
@@ -84,6 +85,7 @@ export const api = {
   getGameSession: (game) => request(`/games/session/${game}`),
   controlGame: (game, actionData) => request(`/games/control/${game}`, { method: 'POST', body: JSON.stringify(actionData) }),
   submitAnswer: (submission) => request('/games/submit-answer', { method: 'POST', body: JSON.stringify(submission) }),
+  finishSquadRound: (data) => request('/games/finish-squad-round', { method: 'POST', body: JSON.stringify(data) }),
   judgePictionary: (judgeData) => request('/games/judge-pictionary', { method: 'POST', body: JSON.stringify(judgeData) }),
   getGameMonitor: (game) => request(`/games/monitor/${game}`),
 };

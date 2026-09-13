@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { SquadProvider } from './context/SquadContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProjectorScoreboard from './components/ProjectorScoreboard';
@@ -74,16 +75,20 @@ function MainApp() {
           <PictionaryPage setCurrentPage={setCurrentPage} />
         )}
         {currentPage === 'faculty' && (
-          <FacultyPage />
+          <FacultyPage setCurrentPage={setCurrentPage} />
         )}
         {currentPage === 'register' && (
-          <RegisterPage eventSettings={eventSettings} />
+          <RegisterPage eventSettings={eventSettings} setCurrentPage={setCurrentPage} />
         )}
         {currentPage === 'live-dashboard' && (
           <LiveDashboardPage setCurrentPage={setCurrentPage} />
         )}
         {currentPage === 'winners' && (
-          <WinnersPage eventSettings={eventSettings} />
+          <WinnersPage
+            eventSettings={eventSettings}
+            setCurrentPage={setCurrentPage}
+            onSettingsUpdated={setEventSettings}
+          />
         )}
         {currentPage === 'admin-login' && (
           <AdminLoginPage setCurrentPage={setCurrentPage} />
@@ -98,9 +103,11 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <SocketProvider>
-        <MainApp />
-      </SocketProvider>
+      <SquadProvider>
+        <SocketProvider>
+          <MainApp />
+        </SocketProvider>
+      </SquadProvider>
     </AuthProvider>
   );
 }

@@ -1,12 +1,29 @@
 import express from 'express';
 import db from '../db.js';
-import { requireAdmin } from '../auth.js';
+import { requireAdmin, checkIsAdmin } from '../auth.js';
 
 const router = express.Router();
 
 // GET questions
 router.get('/', (req, res) => {
   const { game, round, type, search } = req.query;
+  const isAdmin = checkIsAdmin(req);
+
+  // Anti-cheating: If requested for a specific game by non-admin,
+  // do NOT release any questions until admin officially starts the game!
+  if (!isAdmin && game && game !== 'all') {
+    const session = db.prepare('SELECT status FROM game_sessions WHERE game = ?').get(game);
+    if (!session || session.status !== 'RUNNING') {
+      return res.json({
+        success: true,
+        count: 0,
+        questions: [],
+        isLocked: true,
+        message: 'Questions are strictly locked until the admin starts the round.'
+      });
+    }
+  }
+
   let sql = 'SELECT * FROM questions WHERE 1=1';
   const params = [];
 
@@ -31,7 +48,7 @@ router.get('/', (req, res) => {
   sql += ' ORDER BY game ASC, round ASC, created_at ASC';
   const questions = db.prepare(sql).all(...params);
 
-  // Parse options_json
+  // Parse options_json and sanitize correct_answer for players
   const formatted = questions.map((q) => {
     let opts = [];
     try {
@@ -39,7 +56,11 @@ router.get('/', (req, res) => {
     } catch {
       opts = [];
     }
-    return { ...q, options: opts };
+    const sanitized = { ...q, options: opts };
+    if (!isAdmin) {
+      delete sanitized.correct_answer;
+    }
+    return sanitized;
   });
 
   return res.json({ success: true, count: formatted.length, questions: formatted });
@@ -47,18 +68,33 @@ router.get('/', (req, res) => {
 
 // GET single question
 router.get('/:id', (req, res) => {
+  const isAdmin = checkIsAdmin(req);
   const q = db.prepare('SELECT * FROM questions WHERE id = ?').get(req.params.id);
   if (!q) {
     return res.status(404).json({ success: false, message: 'Question not found' });
   }
+
+  if (!isAdmin) {
+    const session = db.prepare('SELECT status FROM game_sessions WHERE game = ?').get(q.game);
+    if (!session || session.status !== 'RUNNING') {
+      return res.status(403).json({ success: false, message: 'Question is locked until game starts' });
+    }
+  }
+
   let opts = [];
   try {
     opts = JSON.parse(q.options_json || '[]');
   } catch {
     opts = [];
   }
-  return res.json({ success: true, question: { ...q, options: opts } });
+
+  const sanitized = { ...q, options: opts };
+  if (!isAdmin) {
+    delete sanitized.correct_answer;
+  }
+  return res.json({ success: true, question: sanitized });
 });
+
 
 // POST create question (Admin)
 router.post('/', requireAdmin, (req, res) => {
@@ -113,15 +149,15 @@ router.put('/:id', requireAdmin, (req, res) => {
       image_url = coalesce(?, image_url)
     WHERE id = ?
   `).run(
-    game,
+    game ?? null,
     round !== undefined ? Number(round) : null,
-    question,
-    type,
-    optionsJson,
-    correct_answer,
+    question ?? null,
+    type ?? null,
+    optionsJson ?? null,
+    correct_answer ?? null,
     time_limit !== undefined ? Number(time_limit) : null,
     base_points !== undefined ? Number(base_points) : null,
-    image_url,
+    image_url ?? null,
     req.params.id
   );
 

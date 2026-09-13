@@ -1,6 +1,7 @@
 import express from 'express';
 import db, { updateRanks } from '../db.js';
-import { requireAdmin } from '../auth.js';
+import { requireAdmin, checkIsAdmin } from '../auth.js';
+import { syncToMySQL } from '../mysqlSync.js';
 import {
   startServerTimer,
   pauseServerTimer,
@@ -8,7 +9,8 @@ import {
   stopServerTimer,
   broadcastSessionState,
   broadcastScoreboard,
-  getIO
+  getIO,
+  liveTeamQuestions
 } from '../socketHandler.js';
 
 const router = express.Router();
@@ -30,19 +32,24 @@ function calculateTimeBonus(game, responseTimeSec) {
 // GET current session state
 router.get('/session/:game', (req, res) => {
   const { game } = req.params;
+  const isAdmin = checkIsAdmin(req);
   const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
   if (!session) {
     return res.status(404).json({ success: false, message: 'Game session not found' });
   }
 
   let question = null;
-  if (session.current_question_id) {
+  // Anti-cheating: Non-admin can only receive active question if session is RUNNING
+  if ((isAdmin || session.status === 'RUNNING') && session.current_question_id) {
     question = db.prepare('SELECT * FROM questions WHERE id = ?').get(session.current_question_id);
     if (question) {
       try {
         question.options = JSON.parse(question.options_json || '[]');
       } catch {
         question.options = [];
+      }
+      if (!isAdmin) {
+        delete question.correct_answer;
       }
     }
   }
@@ -54,6 +61,7 @@ router.get('/session/:game', (req, res) => {
 
   return res.json({ success: true, session, question, team });
 });
+
 
 // ADMIN Game Control
 router.post('/control/:game', requireAdmin, (req, res) => {
@@ -71,24 +79,40 @@ router.post('/control/:game', requireAdmin, (req, res) => {
   switch (action) {
     case 'START_GAME': {
       const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = 1 ORDER BY created_at ASC LIMIT 1').get(game);
+      const duration = Number(timerDuration) || defaultTimer;
       db.prepare(`
         UPDATE game_sessions 
         SET round = 1, current_question_id = ?, status = 'RUNNING', is_paused = 0, timer_remaining = ?
         WHERE game = ?
-      `).run(firstQ ? firstQ.id : null, defaultTimer, game);
+      `).run(firstQ ? firstQ.id : null, duration, game);
 
-      startServerTimer(game, defaultTimer);
+      startServerTimer(game, duration);
+      break;
+    }
+
+    case 'SET_TIMER_DURATION': {
+      const newDuration = Math.max(5, Math.min(300, Number(timerDuration) || 30));
+      db.prepare('UPDATE scoring_settings SET timer_duration = ? WHERE game = ?').run(newDuration, game);
+      if (session.status !== 'RUNNING') {
+        db.prepare('UPDATE game_sessions SET timer_remaining = ? WHERE game = ?').run(newDuration, game);
+      }
+      broadcastSessionState(game);
+      const io = getIO();
+      if (io) {
+        io.to(`game_${game}`).emit('timer_tick', { game, remaining: newDuration, status: session.status });
+      }
       break;
     }
 
     case 'START_ROUND': {
       const r = Number(round) || 1;
       const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = ? ORDER BY created_at ASC LIMIT 1').get(game, r);
+      const duration = Number(timerDuration) || defaultTimer;
       db.prepare(`
         UPDATE game_sessions 
         SET round = ?, current_question_id = ?, status = 'READY', is_paused = 0, timer_remaining = ?
         WHERE game = ?
-      `).run(r, firstQ ? firstQ.id : null, defaultTimer, game);
+      `).run(r, firstQ ? firstQ.id : null, duration, game);
       broadcastSessionState(game);
       break;
     }
@@ -98,7 +122,7 @@ router.post('/control/:game', requireAdmin, (req, res) => {
       const q = db.prepare('SELECT * FROM questions WHERE id = ?').get(questionId);
       if (!q) return res.status(404).json({ success: false, message: 'Question not found' });
 
-      const duration = q.time_limit || defaultTimer;
+      const duration = Number(timerDuration) || q.time_limit || defaultTimer;
       db.prepare(`
         UPDATE game_sessions 
         SET current_question_id = ?, round = ?, timer_remaining = ?, is_paused = 0
@@ -115,6 +139,31 @@ router.post('/control/:game', requireAdmin, (req, res) => {
       break;
     }
 
+    case 'START_PICTIONARY_TURN': {
+      const activeTeamId = teamId || session.current_team_id;
+      const activeQuestionId = questionId || session.current_question_id;
+      const duration = Number(timerDuration) || 30;
+
+      db.prepare(`
+        UPDATE game_sessions 
+        SET current_team_id = ?, current_question_id = ?, timer_remaining = ?, status = 'RUNNING', is_paused = 0
+        WHERE game = 'pictionary'
+      `).run(activeTeamId, activeQuestionId, duration);
+
+      const io = getIO();
+      if (io) {
+        io.to('game_pictionary').emit('clear_canvas');
+        io.to('game_pictionary').emit('pictionary_turn_started', {
+          teamId: activeTeamId,
+          duration
+        });
+      }
+
+      startServerTimer('pictionary', duration);
+      broadcastSessionState('pictionary');
+      break;
+    }
+
     case 'START_TIMER': {
       const duration = Number(timerDuration) || session.timer_remaining || defaultTimer;
       startServerTimer(game, duration);
@@ -123,6 +172,27 @@ router.post('/control/:game', requireAdmin, (req, res) => {
 
     case 'PAUSE_TIMER': {
       pauseServerTimer(game);
+      break;
+    }
+
+    case 'STOP_GAME':
+    case 'STOP_TIMER':
+    case 'STOP_PICTIONARY_TURN': {
+      stopServerTimer(game);
+      db.prepare("UPDATE game_sessions SET status = 'TIME_UP', timer_remaining = 0 WHERE game = ?").run(game);
+      updateRanks(game);
+      broadcastScoreboard();
+      const io = getIO();
+      if (io) {
+        io.to(`game_${game}`).emit('timer_tick', { game, remaining: 0, status: 'TIME_UP' });
+        io.to(`game_${game}`).emit('time_up', { game });
+        io.emit('brain_round_finished', {
+          game,
+          status: 'TIME_UP',
+          message: 'Round stopped! Points calculated and dashboard updated.'
+        });
+      }
+      broadcastSessionState(game);
       break;
     }
 
@@ -218,10 +288,21 @@ router.post('/submit-answer', (req, res) => {
     return res.status(404).json({ success: false, message: 'Question not found' });
   }
 
-  const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(team.game);
-  if (!session || (session.status !== 'RUNNING' && session.status !== 'READY')) {
-    return res.status(400).json({ success: false, message: 'Game is not currently active for submissions or time has expired' });
+  const activeGame = question.game || (team.game === 'both' ? 'brain' : team.game);
+
+  // Security & game integrity: Team must be registered for this game
+  if (team.game !== 'both' && team.game !== activeGame) {
+    return res.status(403).json({ 
+      success: false, 
+      message: `Squad "${team.team_name}" is registered only for ${team.game === 'brain' ? "Engineer's Brain" : "Engineering Pictionary"} and cannot participate in ${activeGame}.` 
+    });
   }
+
+  const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(activeGame);
+  if (!session || session.status !== 'RUNNING') {
+    return res.status(400).json({ success: false, message: 'Game has not started or is not currently active for submissions' });
+  }
+
 
   // Anti-cheating: Check if team already answered this question
   const existingAnswer = db.prepare('SELECT id FROM answers WHERE team_id = ? AND question_id = ?').get(teamId, questionId);
@@ -235,10 +316,29 @@ router.post('/submit-answer', (req, res) => {
   let responseTime = Math.max(0.5, totalLimit - remaining);
   responseTime = Number(responseTime.toFixed(1));
 
-  // Validate answer
-  const isCorrect = String(answer).trim().toLowerCase() === String(question.correct_answer).trim().toLowerCase();
+  // Validate answer (flexible matching for exact text, letter prefix like "B) Resistor", or option letter)
+  const cleanAns = String(answer).trim().toLowerCase();
+  const cleanCorrect = String(question.correct_answer).trim().toLowerCase();
+  let isCorrect = cleanAns === cleanCorrect;
 
-  const scoring = db.prepare('SELECT * FROM scoring_settings WHERE game = ?').get(team.game);
+  if (!isCorrect) {
+    try {
+      const opts = JSON.parse(question.options_json || '[]');
+      opts.forEach((opt, idx) => {
+        const letter = String.fromCharCode(65 + idx).toLowerCase(); // a, b, c, d
+        const cleanOpt = String(opt).trim().toLowerCase();
+        
+        const isOptCorrect = cleanCorrect === cleanOpt || cleanCorrect === letter || cleanCorrect.startsWith(`${letter})`) || cleanCorrect.startsWith(`${letter} `);
+        if (isOptCorrect) {
+          if (cleanAns === cleanOpt || cleanAns === letter || cleanAns.startsWith(`${letter})`) || cleanAns.startsWith(`${letter} `)) {
+            isCorrect = true;
+          }
+        }
+      });
+    } catch {}
+  }
+
+  const scoring = db.prepare('SELECT * FROM scoring_settings WHERE game = ?').get(activeGame);
   const basePointsSetting = question.base_points || (scoring ? scoring.base_points : 10);
   const negativePointsSetting = scoring ? scoring.negative_points : 0;
 
@@ -248,7 +348,7 @@ router.post('/submit-answer', (req, res) => {
 
   if (isCorrect) {
     basePoints = basePointsSetting;
-    timeBonus = calculateTimeBonus(team.game, responseTime);
+    timeBonus = calculateTimeBonus(activeGame, responseTime);
     totalPoints = basePoints + timeBonus;
   } else {
     totalPoints = -negativePointsSetting;
@@ -262,7 +362,7 @@ router.post('/submit-answer', (req, res) => {
     answerId,
     teamId,
     questionId,
-    team.game,
+    activeGame,
     question.round,
     String(answer),
     isCorrect ? 1 : 0,
@@ -279,9 +379,14 @@ router.post('/submit-answer', (req, res) => {
     UPDATE teams 
     SET score = ?, status = ?
     WHERE id = ?
-  `).run(newScore, `ROUND ${question.round}`, teamId);
+  `).run(newScore, isCorrect ? 'ANSWERED_CORRECT' : 'ANSWERED_WRONG', teamId);
 
-  updateRanks(team.game);
+  if (team.game === 'both') {
+    updateRanks('brain');
+    updateRanks('pictionary');
+  } else {
+    updateRanks(team.game);
+  }
   broadcastScoreboard();
 
   // Notify socket clients about live answer for admin monitor
@@ -297,6 +402,12 @@ router.post('/submit-answer', (req, res) => {
     });
   }
 
+  // Auto-stop detection: When all participating squads have submitted all questions in the round,
+  // automatically stop the game clock, calculate scores, and update the Live Dashboard!
+  if (activeGame === 'brain') {
+    checkAndAutoStopBrainRoundIfAllSubmitted(session.round || 1);
+  }
+
   return res.json({
     success: true,
     isCorrect,
@@ -306,6 +417,106 @@ router.post('/submit-answer', (req, res) => {
     timeBonus,
     totalPoints,
     newTeamScore: newScore
+  });
+});
+
+// Helper function: check if all participating squads have submitted all questions in the current round
+export function checkAndAutoStopBrainRoundIfAllSubmitted(currentRound = 1) {
+  try {
+    const session = db.prepare("SELECT * FROM game_sessions WHERE game = 'brain'").get();
+    if (!session || (session.status !== 'RUNNING' && session.status !== 'READY')) {
+      return false;
+    }
+
+    const roundQuestions = db.prepare('SELECT id FROM questions WHERE game = ? AND round = ?').all('brain', currentRound);
+    const totalQCount = roundQuestions.length;
+    if (totalQCount === 0) return false;
+
+    const qIds = roundQuestions.map(q => q.id);
+    const placeholders = qIds.map(() => '?').join(',');
+
+    // Teams that have answered at least one question in this round
+    const activeTeams = db.prepare(`
+      SELECT DISTINCT team_id 
+      FROM answers 
+      WHERE question_id IN (${placeholders})
+    `).all(...qIds);
+
+    if (activeTeams.length === 0) return false;
+
+    // Check if every participating team has answered all questions in this round
+    let allFinished = true;
+    for (const at of activeTeams) {
+      const countRow = db.prepare(`
+        SELECT COUNT(DISTINCT question_id) as cnt 
+        FROM answers 
+        WHERE team_id = ? AND question_id IN (${placeholders})
+      `).get(at.team_id, ...qIds);
+
+      if (!countRow || countRow.cnt < totalQCount) {
+        allFinished = false;
+        break;
+      }
+    }
+
+    if (allFinished) {
+      console.log(`[Auto-Stop] All participating teams (${activeTeams.length}) have submitted all ${totalQCount} questions! Auto-stopping round, calculating scores, and updating live dashboard.`);
+      stopServerTimer('brain');
+      db.prepare("UPDATE game_sessions SET status = 'TIME_UP', timer_remaining = 0 WHERE game = 'brain'").run();
+      updateRanks('brain');
+      updateRanks('pictionary');
+      broadcastScoreboard();
+      syncToMySQL();
+
+      const io = getIO();
+      if (io) {
+        io.to('game_brain').emit('timer_tick', { game: 'brain', remaining: 0, status: 'TIME_UP' });
+        io.to('game_brain').emit('time_up', { game: 'brain' });
+        io.emit('brain_round_finished', {
+          game: 'brain',
+          status: 'TIME_UP',
+          allSubmitted: true,
+          message: 'All squads have submitted all questions! Game stopped, scores calculated, and live dashboard updated.'
+        });
+      }
+      broadcastSessionState('brain');
+      return true;
+    }
+  } catch (err) {
+    console.error('Error in checkAndAutoStopBrainRoundIfAllSubmitted:', err);
+  }
+  return false;
+}
+
+// FINISH SQUAD ROUND (Player / Arena voluntary finish or submission completion)
+router.post('/finish-squad-round', (req, res) => {
+  const { teamId, game = 'brain' } = req.body;
+  if (!teamId) {
+    return res.status(400).json({ success: false, message: 'teamId is required' });
+  }
+
+  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(teamId);
+  if (!team) {
+    return res.status(404).json({ success: false, message: 'Team not found' });
+  }
+
+  const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
+  if (!session) {
+    return res.status(404).json({ success: false, message: 'Game session not found' });
+  }
+
+  updateRanks(game);
+  broadcastScoreboard();
+  syncToMySQL();
+
+  const isStopped = checkAndAutoStopBrainRoundIfAllSubmitted(session.round || 1);
+
+  return res.json({
+    success: true,
+    allSubmitted: isStopped,
+    message: isStopped
+      ? 'All squads have submitted! Round stopped, points calculated, and live dashboard updated.'
+      : 'Squad answers recorded! Live leaderboard recalculated.'
   });
 });
 
@@ -322,12 +533,16 @@ router.post('/judge-pictionary', requireAdmin, (req, res) => {
     return res.status(404).json({ success: false, message: 'Team or Question not found' });
   }
 
-  // Stop active timer
+  const timeTaken = Math.min(30, Math.max(1, Number(responseTime) || 15.0));
+
+  // Stop active timer & freeze session
   stopServerTimer('pictionary');
+  const remainingSec = Math.max(0, 30 - Math.round(timeTaken));
+  db.prepare("UPDATE game_sessions SET status = 'ROUND_ENDED', timer_remaining = ? WHERE game = 'pictionary'")
+    .run(remainingSec);
 
   const scoring = db.prepare("SELECT * FROM scoring_settings WHERE game = 'pictionary'").get();
   const basePointsSetting = question.base_points || (scoring ? scoring.base_points : 10);
-  const timeTaken = Number(responseTime) || 15.0;
 
   let basePoints = 0;
   let timeBonus = 0;
@@ -358,60 +573,164 @@ router.post('/judge-pictionary', requireAdmin, (req, res) => {
   );
 
   const newScore = team.score + totalPoints;
-  db.prepare('UPDATE teams SET score = ?, status = ? WHERE id = ?')
-    .run(newScore, `ROUND ${question.round}`, teamId);
+  // If team was only registered for brain, mark them as 'both' so they appear on pictionary leaderboard
+  const updatedGame = (team.game === 'brain' || team.game === 'both') ? 'both' : 'pictionary';
+  db.prepare('UPDATE teams SET score = ?, status = ?, game = ? WHERE id = ?')
+    .run(newScore, `ROUND ${question.round}`, updatedGame, teamId);
+
+  syncToMySQL(
+    'UPDATE teams SET score = ?, status = ?, game = ? WHERE id = ?',
+    [newScore, `ROUND ${question.round}`, updatedGame, teamId]
+  );
 
   updateRanks('pictionary');
+  updateRanks('brain');
   broadcastScoreboard();
+  broadcastSessionState('pictionary');
+
+  const io = getIO();
+  if (io) {
+    const payload = {
+      teamId,
+      teamName: team.team_name,
+      isCorrect,
+      basePoints,
+      timeBonus,
+      totalPoints,
+      newScore,
+      responseTime: timeTaken,
+      concept: question.correct_answer
+    };
+    io.to('game_pictionary').emit('pictionary_round_finished', payload);
+    io.emit('pictionary_round_finished', payload);
+    io.emit('scoreboard_updated', db.prepare('SELECT * FROM teams ORDER BY score DESC, rank ASC').all());
+  }
 
   return res.json({
     success: true,
-    message: `Pictionary evaluated: ${isCorrect ? 'CORRECT' : 'WRONG'} (+${totalPoints} pts)`,
+    message: isCorrect 
+      ? `Round finished! ${team.team_name} guessed correctly in ${timeTaken}s (+${totalPoints} pts)`
+      : `Round ended for ${team.team_name} (Pass / 0 pts)`,
     totalPoints,
+    basePoints,
+    timeBonus,
+    responseTime: timeTaken,
     newScore
   });
 });
 
-// ADMIN LIVE MONITOR STATS
+// ADMIN LIVE MONITOR STATS (Tracks all teams, current question number, and live points)
 router.get('/monitor/:game', (req, res) => {
   const { game } = req.params;
   const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
-  if (!session || !session.current_question_id) {
-    return res.json({
-      success: true,
-      currentQuestion: null,
-      answersCount: 0,
-      totalTeams: 0,
-      fastestAnswer: null,
-      correctCount: 0,
-      wrongCount: 0,
-      leader: null
-    });
+  const currentRound = session ? (session.round || 1) : 1;
+
+  // Questions in this round
+  const roundQuestions = db.prepare('SELECT id, question, round FROM questions WHERE game = ? AND round = ? ORDER BY created_at ASC').all(game, currentRound);
+  const totalQuestions = roundQuestions.length;
+  const qIds = roundQuestions.map(q => q.id);
+  const placeholders = qIds.length > 0 ? qIds.map(() => '?').join(',') : null;
+
+  // All verified teams participating in this game
+  const participatingTeams = db.prepare(`
+    SELECT id, team_name, captain, score, rank, status, game
+    FROM teams 
+    WHERE (game = ? OR game = 'both') AND registration_status = 'VERIFIED'
+    ORDER BY score DESC, rank ASC
+  `).all(game);
+
+  // Map each team's live question and points progress
+  const teamsProgress = participatingTeams.map((t) => {
+    let answeredCount = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let roundPoints = 0;
+    let lastActivity = null;
+    let answeredQuestionIds = [];
+
+    if (placeholders && qIds.length > 0) {
+      const teamAnswers = db.prepare(`
+        SELECT question_id, is_correct, total_points, created_at 
+        FROM answers 
+        WHERE team_id = ? AND question_id IN (${placeholders})
+        ORDER BY created_at ASC
+      `).all(t.id, ...qIds);
+
+      answeredCount = teamAnswers.length;
+      correctCount = teamAnswers.filter(a => a.is_correct === 1).length;
+      wrongCount = teamAnswers.filter(a => a.is_correct === 0).length;
+      roundPoints = teamAnswers.reduce((sum, a) => sum + (Number(a.total_points) || 0), 0);
+      answeredQuestionIds = teamAnswers.map(a => a.question_id);
+      if (teamAnswers.length > 0) {
+        lastActivity = teamAnswers[teamAnswers.length - 1].created_at;
+      }
+    }
+
+    const isCompleted = totalQuestions > 0 && answeredCount >= totalQuestions;
+    
+    // Live question number: from socket heartbeat or next unanswered question
+    let currentQuestionNum = isCompleted 
+      ? totalQuestions 
+      : Math.min(totalQuestions > 0 ? totalQuestions : 1, answeredCount + 1);
+
+    if (liveTeamQuestions && liveTeamQuestions[t.id] && !isCompleted) {
+      currentQuestionNum = liveTeamQuestions[t.id];
+    }
+
+    return {
+      id: t.id,
+      team_name: t.team_name,
+      captain: t.captain,
+      score: t.score || 0,
+      roundPoints,
+      rank: t.rank || 1,
+      currentQuestionNum,
+      totalQuestions: totalQuestions || 6,
+      answeredCount,
+      correctCount,
+      wrongCount,
+      isCompleted,
+      status: isCompleted ? 'COMPLETED' : (answeredCount > 0 ? 'SOLVING' : 'WAITING'),
+      lastActivity
+    };
+  });
+
+  // Recent answers across all teams for the active question or round
+  let answers = [];
+  if (session && session.current_question_id) {
+    answers = db.prepare(`
+      SELECT a.*, t.team_name 
+      FROM answers a
+      JOIN teams t ON a.team_id = t.id
+      WHERE a.question_id = ?
+      ORDER BY a.created_at DESC
+      LIMIT 10
+    `).all(session.current_question_id);
+  } else if (placeholders && qIds.length > 0) {
+    answers = db.prepare(`
+      SELECT a.*, t.team_name 
+      FROM answers a
+      JOIN teams t ON a.team_id = t.id
+      WHERE a.question_id IN (${placeholders})
+      ORDER BY a.created_at DESC
+      LIMIT 10
+    `).all(...qIds);
   }
 
-  const totalTeams = db.prepare('SELECT count(*) as count FROM teams WHERE game = ?').get(game).count;
-  const answers = db.prepare(`
-    SELECT a.*, t.team_name 
-    FROM answers a
-    JOIN teams t ON a.team_id = t.id
-    WHERE a.question_id = ?
-    ORDER BY a.response_time ASC
-  `).all(session.current_question_id);
-
-  const correctCount = answers.filter(a => a.is_correct === 1).length;
-  const wrongCount = answers.filter(a => a.is_correct === 0).length;
-  const fastest = answers.find(a => a.is_correct === 1) || answers[0] || null;
-  const leader = db.prepare('SELECT team_name, score FROM teams WHERE game = ? ORDER BY score DESC, rank ASC LIMIT 1').get(game);
+  const leader = participatingTeams[0] ? `${participatingTeams[0].team_name} – ${participatingTeams[0].score} Pts` : 'N/A';
+  const completedCount = teamsProgress.filter(t => t.isCompleted).length;
+  const activeCount = teamsProgress.filter(t => t.answeredCount > 0 && !t.isCompleted).length;
 
   return res.json({
     success: true,
-    answersCount: answers.length,
-    totalTeams,
-    fastestAnswer: fastest ? { teamName: fastest.team_name, time: fastest.response_time } : null,
-    correctCount,
-    wrongCount,
-    leader: leader ? `${leader.team_name} – ${leader.score} Pts` : 'N/A',
-    recentAnswers: answers.slice(0, 10)
+    round: currentRound,
+    totalQuestions: totalQuestions || 6,
+    totalTeams: participatingTeams.length,
+    activeTeamsCount: activeCount,
+    completedTeamsCount: completedCount,
+    leader,
+    teamsProgress,
+    recentAnswers: answers
   });
 });
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../db.js';
 import { requireAdmin } from '../auth.js';
+import { syncToMySQL } from '../mysqlSync.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -27,7 +28,7 @@ const router = express.Router();
 
 // GET all faculty
 router.get('/', (req, res) => {
-  const faculty = db.prepare('SELECT * FROM faculty ORDER BY is_hod DESC, created_at ASC').all();
+  const faculty = db.prepare('SELECT * FROM faculty ORDER BY order_index ASC, is_hod DESC, id ASC').all();
   return res.json({ success: true, count: faculty.length, faculty });
 });
 
@@ -117,7 +118,19 @@ router.put('/:id', requireAdmin, (req, res) => {
       position_role = coalesce(?, position_role),
       is_hod = ?
     WHERE id = ?
-  `).run(name, designation, department, newImage, description, position_role, newIsHod, req.params.id);
+  `).run(name ?? null, designation ?? null, department ?? null, newImage ?? null, description ?? null, position_role ?? null, newIsHod, req.params.id);
+
+  syncToMySQL(`
+    UPDATE faculty SET
+      name = coalesce(?, name),
+      designation = coalesce(?, designation),
+      department = coalesce(?, department),
+      profile_image = ?,
+      description = coalesce(?, description),
+      position_role = coalesce(?, position_role),
+      is_hod = ?
+    WHERE id = ?
+  `, [name ?? null, designation ?? null, department ?? null, newImage ?? null, description ?? null, position_role ?? null, newIsHod, req.params.id]);
 
   return res.json({ success: true, message: 'Faculty member updated successfully' });
 });

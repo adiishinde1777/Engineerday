@@ -16,7 +16,7 @@ import { api } from '../utils/api';
 import TeamProfileModal from '../components/TeamProfileModal';
 
 export default function LiveDashboardPage({ setCurrentPage }) {
-  const { scoreboard, setScoreboard, isConnected } = useSocket();
+  const { socket, scoreboard, setScoreboard, isConnected } = useSocket();
   const [filterGame, setFilterGame] = useState('all'); // 'all' | 'brain' | 'pictionary'
   const [search, setSearch] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState(null);
@@ -40,8 +40,28 @@ export default function LiveDashboardPage({ setCurrentPage }) {
     fetchScoreboard();
   }, [filterGame, search]);
 
+  // Real-time listener for score updates and round conclusions
+  useEffect(() => {
+    if (!socket) return;
+    const handleLiveScoreUpdate = () => {
+      fetchScoreboard();
+    };
+
+    socket.on('scoreboard_updated', handleLiveScoreUpdate);
+    socket.on('pictionary_round_finished', handleLiveScoreUpdate);
+    socket.on('brain_round_finished', handleLiveScoreUpdate);
+    socket.on('new_answer_submitted', handleLiveScoreUpdate);
+
+    return () => {
+      socket.off('scoreboard_updated', handleLiveScoreUpdate);
+      socket.off('pictionary_round_finished', handleLiveScoreUpdate);
+      socket.off('brain_round_finished', handleLiveScoreUpdate);
+      socket.off('new_answer_submitted', handleLiveScoreUpdate);
+    };
+  }, [socket, filterGame, search]);
+
   const filteredTeams = scoreboard.filter((team) => {
-    if (filterGame !== 'all' && team.game !== filterGame) return false;
+    if (filterGame !== 'all' && team.game !== filterGame && team.game !== 'both') return false;
     if (search && !team.team_name.toLowerCase().includes(search.toLowerCase()) && !team.captain.toLowerCase().includes(search.toLowerCase())) {
       return false;
     }
@@ -64,7 +84,7 @@ export default function LiveDashboardPage({ setCurrentPage }) {
             </span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
-            LIVE ENGINEERS’ DAY DASHBOARD
+            LIVE ENGINEER'S DAY DASHBOARD
           </h1>
           <p className="text-sm text-slate-300">
             Real-time standings, round progressions, and scoring telemetry synchronized with zero latency.
@@ -197,11 +217,13 @@ export default function LiveDashboardPage({ setCurrentPage }) {
                       {/* Game */}
                       <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
                         <span className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase ${
-                          team.game === 'brain'
-                            ? 'bg-cyan-950 text-cyan-400 border border-cyan-500/30'
-                            : 'bg-indigo-950 text-indigo-400 border border-indigo-500/30'
+                          team.game === 'both'
+                            ? 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                            : team.game === 'brain'
+                              ? 'bg-cyan-950 text-cyan-400 border border-cyan-500/30'
+                              : 'bg-indigo-950 text-indigo-400 border border-indigo-500/30'
                         }`}>
-                          {team.game === 'brain' ? 'Brain' : 'Pictionary'}
+                          {team.game === 'both' ? 'Both Games' : team.game === 'brain' ? 'Brain' : 'Pictionary'}
                         </span>
                       </td>
 

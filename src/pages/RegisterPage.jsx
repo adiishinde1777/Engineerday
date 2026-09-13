@@ -1,390 +1,578 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  ExternalLink, 
   CheckCircle2, 
   AlertCircle, 
   Users, 
   Clock, 
-  ShieldAlert, 
   Search, 
   Sparkles, 
   Calendar, 
-  Send,
-  Zap,
+  Zap, 
+  Phone, 
+  User, 
+  ShieldCheck, 
+  Trophy, 
+  Printer, 
+  ArrowRight,
   RefreshCw,
-  Phone,
-  User,
-  ShieldCheck,
-  Trophy,
-  FileSpreadsheet
+  Crown,
+  Share2,
+  Layers,
+  ChevronRight,
+  Filter,
+  Lock,
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../utils/api';
+import { useSquad } from '../context/SquadContext';
 
-export default function RegisterPage({ eventSettings }) {
-  const googleFormUrl = eventSettings?.googleFormUrl || 'https://forms.gle/Wz7TfiFHX1hNsakb8';
+export default function RegisterPage({ eventSettings, setCurrentPage }) {
+  const { currentSquad, saveSquad } = useSquad();
   const eventDate = "15 September 2026";
 
-  const [activeTab, setActiveTab] = useState('direct'); // 'direct' | 'google'
-  const [showEmbed, setShowEmbed] = useState(false);
-
-  // Direct Form State
+  // Form State
   const [formData, setFormData] = useState({
     team_name: '',
     game: 'brain',
     student_name: '',
     student_mobile: '',
     member_name_2: '',
-    member_name_3: ''
+    member_name_3: '',
+    password: '',
+    confirm_password: '',
+    department: 'Electronics Engineering (VLSI Design and Technology)'
   });
+
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [registeredTeam, setRegisteredTeam] = useState(null);
 
-  // Sync Google Form state
-  const [syncingGoogle, setSyncingGoogle] = useState(false);
-  const [syncGoogleMessage, setSyncGoogleMessage] = useState(null);
+  // Live Registered Teams List State
+  const [teams, setTeams] = useState([]);
+  const [loadingTeams, setLoadingTeams] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGame, setFilterGame] = useState('all'); // 'all' | 'brain' | 'pictionary'
 
-  // Search Team State
-  const [searchTeam, setSearchTeam] = useState('');
-  const [searchResult, setSearchResult] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
+  // Fetch registered teams from database
+  const fetchRegisteredTeams = async () => {
+    try {
+      setLoadingTeams(true);
+      const res = await api.getTeams();
+      if (res.success) {
+        setTeams(res.teams || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch teams:', err);
+    } finally {
+      setLoadingTeams(false);
+    }
+  };
 
-  // Compute clean embedded Google Form URL
-  const embedUrl = (() => {
-    if (!googleFormUrl) return 'https://docs.google.com/forms/d/e/1FAIpQLSfi7dSLkVP4LStLupemIR8H9ZteEA2RGd66HOSfRz_wBNMoFw/viewform?embedded=true';
-    if (googleFormUrl.includes('1FAIpQLSfi7dSLkVP4LStLupemIR8H9ZteEA2RGd66HOSfRz_wBNMoFw') || googleFormUrl.includes('Wz7TfiFHX1hNsakb8')) {
-      return 'https://docs.google.com/forms/d/e/1FAIpQLSfi7dSLkVP4LStLupemIR8H9ZteEA2RGd66HOSfRz_wBNMoFw/viewform?embedded=true';
-    }
-    if (googleFormUrl.includes('forms.gle/')) {
-      return 'https://docs.google.com/forms/d/e/1FAIpQLSfi7dSLkVP4LStLupemIR8H9ZteEA2RGd66HOSfRz_wBNMoFw/viewform?embedded=true';
-    }
-    if (googleFormUrl.includes('/viewform')) {
-      return googleFormUrl.split('?')[0] + '?embedded=true';
-    }
-    return googleFormUrl;
-  })();
+  useEffect(() => {
+    fetchRegisteredTeams();
+  }, []);
 
-  // Handle Direct Online Registration
-  const handleDirectSubmit = async (e) => {
+  // Handle Form Submission
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
 
-    if (!formData.team_name.trim()) {
-      setSubmitError('Please enter a unique Team Name');
+    const teamName = formData.team_name.trim();
+    const captain = formData.student_name.trim();
+    const mobile = formData.student_mobile.trim();
+    const member2 = formData.member_name_2.trim();
+    const member3 = formData.member_name_3.trim();
+    const password = (formData.password || '').trim();
+    const confirmPassword = (formData.confirm_password || '').trim();
+
+    if (!teamName) {
+      setSubmitError('Please enter your Squad / Team Name');
       return;
     }
-    if (!formData.student_name.trim()) {
-      setSubmitError('Please enter Student Name (Captain)');
+    if (!captain) {
+      setSubmitError('Please enter Captain Name (Member 1)');
       return;
     }
-    if (!formData.student_mobile.trim()) {
-      setSubmitError('Please enter Student Mobile Number');
+    if (!mobile || mobile.length < 10) {
+      setSubmitError('Please enter a valid 10-digit WhatsApp Mobile Number');
+      return;
+    }
+    if (!member2) {
+      setSubmitError('Please enter Squad Member 2 Name');
+      return;
+    }
+    if (!member3) {
+      setSubmitError('Please enter Squad Member 3 Name');
+      return;
+    }
+    if (!password) {
+      setSubmitError('Please create a Squad Access Password / PIN');
+      return;
+    }
+    if (password.length < 4) {
+      setSubmitError('Squad Password must be at least 4 characters long');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setSubmitError('Squad Passwords do not match. Please re-enter.');
       return;
     }
 
     setIsSubmitting(true);
     try {
       const payload = {
-        team_name: formData.team_name.trim(),
+        team_name: teamName,
         game: formData.game,
-        captain: formData.student_name.trim(),
-        member1: formData.student_name.trim(),
-        member2: formData.member_name_2.trim() || 'Member 2',
-        member3: formData.member_name_3.trim() || 'Member 3',
-        contact: formData.student_mobile.trim(),
+        captain: captain,
+        member1: captain,
+        member2: member2,
+        member3: member3,
+        contact: mobile,
+        password: password,
         registration_status: 'VERIFIED'
       };
 
       const res = await api.createTeam(payload);
       if (res.success) {
         confetti({
-          particleCount: 100,
-          spread: 70,
+          particleCount: 120,
+          spread: 80,
           origin: { y: 0.6 }
         });
-        setRegisteredTeam(res.team || payload);
+
+        const newTeamData = res.team || {
+          ...payload,
+          id: res.id || `team-${Date.now()}`,
+          created_at: new Date().toISOString()
+        };
+
+        saveSquad(newTeamData);
+        setRegisteredTeam(newTeamData);
         setFormData({
           team_name: '',
           game: 'brain',
           student_name: '',
           student_mobile: '',
           member_name_2: '',
-          member_name_3: ''
+          member_name_3: '',
+          password: '',
+          confirm_password: '',
+          department: 'Electronics Engineering (VLSI Design and Technology)'
         });
+
+        // Re-fetch teams to include the new entry immediately in database list
+        await fetchRegisteredTeams();
+
+        // Scroll smoothly to receipt
+        window.scrollTo({ top: 120, behavior: 'smooth' });
       } else {
         setSubmitError(res.message || 'Registration failed');
       }
     } catch (err) {
-      setSubmitError(err.message || 'Network error during registration');
+      setSubmitError(err.message || 'Failed to submit registration. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Sync Google Form on-demand
-  const handleSyncGoogleNow = async () => {
-    setSyncingGoogle(true);
-    setSyncGoogleMessage(null);
-    try {
-      const res = await fetch('/api/teams/sync-now', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        setSyncGoogleMessage({
-          success: true,
-          text: data.message || `Successfully synced ${data.importedCount || 0} teams!`
-        });
-        if (data.importedCount > 0) {
-          confetti({ particleCount: 75, spread: 60 });
-        }
-      } else {
-        setSyncGoogleMessage({
-          success: false,
-          text: data.message || 'Sync failed. Make sure your Google Sheet is linked in Admin Settings.'
-        });
-      }
-    } catch (err) {
-      setSyncGoogleMessage({
-        success: false,
-        text: 'Sync request failed: ' + err.message
-      });
-    } finally {
-      setSyncingGoogle(false);
-    }
-  };
+  // Filtered teams for display
+  const filteredTeams = teams.filter((t) => {
+    const matchesGame = filterGame === 'all' || 
+      t.game === filterGame || 
+      (filterGame === 'both' && t.game === 'both') ||
+      (t.game === 'both' && (filterGame === 'brain' || filterGame === 'pictionary'));
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q || 
+      t.team_name?.toLowerCase().includes(q) ||
+      t.captain?.toLowerCase().includes(q) ||
+      t.member1?.toLowerCase().includes(q) ||
+      t.member2?.toLowerCase().includes(q) ||
+      t.member3?.toLowerCase().includes(q);
+    return matchesGame && matchesSearch;
+  });
 
-  // Quick lookup of registration status
-  const handleCheckStatus = async (e) => {
-    e.preventDefault();
-    if (!searchTeam.trim()) return;
-    setIsSearching(true);
-    setSearchResult(null);
-    try {
-      const res = await api.getTeams({ search: searchTeam.trim() });
-      if (res.success && res.teams.length > 0) {
-        setSearchResult({ found: true, team: res.teams[0] });
-      } else {
-        setSearchResult({ found: false, message: `No registered team matching "${searchTeam}" was found.` });
-      }
-    } catch (err) {
-      setSearchResult({ found: false, message: 'Lookup query failed. Please try again.' });
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  const brainCount = teams.filter(t => t.game === 'brain' || t.game === 'both').length;
+  const pictionaryCount = teams.filter(t => t.game === 'pictionary' || t.game === 'both').length;
+  const bothCount = teams.filter(t => t.game === 'both').length;
 
   return (
-    <div className="py-12 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+    <div className="py-12 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
       
-      {/* Header */}
-      <div className="text-center max-w-3xl mx-auto space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-mono uppercase">
+      {/* Top Header */}
+      <div className="text-center max-w-3xl mx-auto space-y-4">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-mono uppercase tracking-wider shadow-lg shadow-cyan-950/50">
           <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-          REGISTRATION DESK • {eventDate}
+          <span>DEPT. OF ELECTRONICS ENGINEERING • {eventDate}</span>
         </div>
-        <h1 className="text-3xl sm:text-5xl font-black text-white font-heading">
-          Team Registration Portal
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-cyan-300 font-heading tracking-tight">
+          Event Registration Portal
         </h1>
-        <p className="text-base text-slate-300 leading-relaxed">
-          Register your squad directly online for instant verification, or submit via the official Google Form.
+        <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl mx-auto">
+          Register your 3-member squad directly on the platform in honor of <strong className="text-white">Dr. Shrikant Honade</strong>. Your team is verified instantly and saved directly into the live tournament database.
         </p>
       </div>
 
-      {/* 4 Pillars Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center font-mono">
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-lg">
-          <Users className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
-          <div className="text-[11px] text-slate-400 uppercase">Squad Size</div>
-          <div className="text-base font-bold text-white mt-0.5">Exactly 3 Members</div>
+      {/* 4 Feature Highlights */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-center font-mono">
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+          <Users className="w-6 h-6 text-cyan-400 mx-auto mb-1.5" />
+          <div className="text-[11px] text-slate-400 uppercase">Squad Rule</div>
+          <div className="text-sm sm:text-base font-bold text-white">Exactly 3 Members</div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-lg">
-          <Clock className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+          <Clock className="w-6 h-6 text-indigo-400 mx-auto mb-1.5" />
           <div className="text-[11px] text-slate-400 uppercase">Turn Timer</div>
-          <div className="text-base font-bold text-white mt-0.5">30 Seconds / Q</div>
+          <div className="text-sm sm:text-base font-bold text-white">30s / Turn</div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-lg">
-          <Sparkles className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
-          <div className="text-[11px] text-slate-400 uppercase">Rounds</div>
-          <div className="text-base font-bold text-white mt-0.5">3 Rounds / Game</div>
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+          <ShieldCheck className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
+          <div className="text-[11px] text-slate-400 uppercase">Verification</div>
+          <div className="text-sm sm:text-base font-bold text-emerald-300">Instant Verified</div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-lg">
-          <Calendar className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
-          <div className="text-[11px] text-slate-400 uppercase">Event Date</div>
-          <div className="text-base font-bold text-cyan-300 mt-0.5">15 Sept 2026</div>
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+          <Zap className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
+          <div className="text-[11px] text-slate-400 uppercase">Database Sync</div>
+          <div className="text-sm sm:text-base font-bold text-amber-300">Live & Realtime</div>
         </div>
       </div>
 
-      {/* REGISTRATION CARD WITH TABS */}
-      <div className="glass-card p-6 sm:p-10 rounded-3xl border border-cyan-500/30 bg-slate-900/90 space-y-8 shadow-2xl">
-        
-        {/* Tab Selection Navigation */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-800">
-          <div>
-            <span className="text-xs font-mono text-cyan-400 uppercase tracking-widest font-bold">REGISTRATION METHODS</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white font-heading mt-0.5">
-              Submit Your Squad
-            </h2>
+      {/* CONFIRMATION DISPLAY: If squad just registered, display immediately */}
+      {registeredTeam && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-emerald-950/90 via-slate-900 to-slate-950 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-500/20 space-y-6 animate-in fade-in duration-300">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-emerald-500/30">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-300 shrink-0">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-900/80 border border-emerald-400 text-emerald-200 text-[11px] font-mono font-bold uppercase mb-1">
+                  <Sparkles className="w-3 h-3 text-emerald-300" />
+                  Official Registration Confirmed
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white font-heading">
+                  {registeredTeam.team_name}
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="px-4 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-mono font-black text-xs uppercase tracking-wider">
+                VERIFIED & READY
+              </span>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors border border-slate-700 cursor-pointer"
+                title="Print Registration Pass"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-950 border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setActiveTab('direct')}
-              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'direct'
-                  ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md shadow-cyan-500/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>⚡ Instant Web Form</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('google')}
-              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'google'
-                  ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-slate-950 shadow-md shadow-cyan-500/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Google Form</span>
-            </button>
+          {/* Pass Details Card */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
+              <span className="text-slate-500 uppercase">Selected Event</span>
+              <div className="text-base font-bold text-cyan-300 uppercase">
+                {registeredTeam.game === 'both'
+                  ? "Both Competitions (Brain + Pictionary)"
+                  : registeredTeam.game === 'brain' 
+                    ? "Engineer’s Brain" 
+                    : "Engineering Pictionary"}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {registeredTeam.game === 'both' ? 'All-Rounder Combo • 15 Sept 2026' : 'Technical showdown on 15 Sept 2026'}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
+              <span className="text-slate-500 uppercase">Captain (Member 1)</span>
+              <div className="text-base font-bold text-white flex items-center gap-1.5">
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span>{registeredTeam.captain}</span>
+              </div>
+              <div className="text-[11px] text-slate-300 flex items-center gap-1 mt-1">
+                <Phone className="w-3 h-3 text-cyan-400" />
+                <span>{registeredTeam.contact}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
+              <span className="text-slate-500 uppercase">Squad Members</span>
+              <div className="text-white font-semibold">2. {registeredTeam.member2}</div>
+              <div className="text-white font-semibold">3. {registeredTeam.member3}</div>
+              <span className="text-[10px] text-emerald-400 font-bold block pt-1">
+                ✓ Exactly 3 Members Confirmed
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-800/80">
+            <p className="text-xs text-slate-400 font-mono">
+              ✓ Successfully stored in tournament database. All team members must report at the Technical Hub 30 minutes prior to round 1 with valid college ID.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              {setCurrentPage && (
+                registeredTeam.game === 'both' ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage('brain-arena')}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-sky-400 hover:from-cyan-300 hover:to-sky-300 text-slate-950 font-black text-xs font-mono tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/25 cursor-pointer"
+                    >
+                      <Zap className="w-3.5 h-3.5 fill-current" />
+                      <span>PLAY BRAIN ARENA</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage('pictionary-arena')}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-300 hover:to-purple-300 text-white font-black text-xs font-mono tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-500/25 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 fill-current" />
+                      <span>PLAY PICTIONARY</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(registeredTeam.game === 'brain' ? 'brain-arena' : 'pictionary-arena')}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-400 hover:from-emerald-300 hover:to-sky-300 text-slate-950 font-black text-xs font-mono tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/30 cursor-pointer animate-pulse"
+                  >
+                    <Zap className="w-4 h-4 fill-current" />
+                    <span>PLAY {registeredTeam.game === 'brain' ? "BRAIN ARENA" : "PICTIONARY ARENA"} NOW</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )
+              )}
+              <button
+                type="button"
+                onClick={() => setRegisteredTeam(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-bold transition-all cursor-pointer"
+              >
+                + Register Another Squad
+              </button>
+              {setCurrentPage && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage('live-dashboard')}
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700 text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>Leaderboard</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MAIN REGISTRATION FORM */}
+      <div className="glass-card p-6 sm:p-10 rounded-3xl border border-cyan-500/30 bg-slate-900/90 shadow-2xl space-y-8">
+        
+        {/* Form Title & Guide */}
+        <div className="pb-6 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-mono text-cyan-400 uppercase tracking-widest font-bold">
+              OFFICIAL ENTRY FORM
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-white font-heading mt-0.5">
+              Submit Your Squad Details
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Fill out the details below. All fields marked with * are required.
+            </p>
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-xs font-mono text-cyan-300">
+            <ShieldCheck className="w-4 h-4 text-cyan-400" />
+            <span>Direct Database Entry</span>
           </div>
         </div>
 
-        {/* TAB 1: DIRECT ONLINE REGISTRATION (INSTANT) */}
-        {activeTab === 'direct' && (
-          <div className="space-y-6">
-            
-            {/* Success Card when just registered */}
-            {registeredTeam && (
-              <div className="p-6 rounded-2xl bg-emerald-950/60 border border-emerald-500/50 space-y-4 animate-in fade-in duration-300">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white font-heading">
-                        🎉 Registration Confirmed!
-                      </h3>
-                      <p className="text-xs text-emerald-300 font-mono">
-                        Team "{registeredTeam.team_name}" is verified and ready for the symposium!
-                      </p>
-                    </div>
-                  </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-900 border border-emerald-500 text-emerald-200 text-xs font-mono font-bold">
-                    VERIFIED
-                  </span>
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* STEP 1: Select Event */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="text-xs font-mono text-cyan-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                <span>1. Choose Competition Event *</span>
+              </label>
+              <span className="text-[11px] font-mono text-slate-400">
+                Select single game or choose both competitions
+              </span>
+            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs font-mono">
-                  <div>
-                    <span className="text-slate-500 block">Competition:</span>
-                    <span className="text-cyan-300 font-bold uppercase">
-                      {registeredTeam.game === 'brain' ? "Engineer's Brain" : "Engineering Pictionary"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Captain / Lead:</span>
-                    <span className="text-white font-bold">{registeredTeam.captain}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Contact:</span>
-                    <span className="text-slate-300">{registeredTeam.contact}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-[11px] text-slate-400 font-mono">
-                    ✓ Your team is live on the system. You can view your squad on the Leaderboard.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setRegisteredTeam(null)}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 underline font-mono cursor-pointer"
-                  >
-                    Register Another Team
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Registration Form */}
-            <form onSubmit={handleDirectSubmit} className="space-y-6">
-              
-              {/* Competition Selection */}
-              <div className="space-y-2">
-                <label className="text-xs font-mono text-cyan-400 uppercase font-bold tracking-wider">
-                  1. Select Competition Event *
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, game: 'brain' })}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      formData.game === 'brain'
-                        ? 'bg-cyan-950/60 border-cyan-400 shadow-md shadow-cyan-500/20'
-                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-white font-heading">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Option 1: Brain */}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, game: 'brain' })}
+                className={`p-5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  formData.game === 'brain'
+                    ? 'bg-gradient-to-br from-cyan-950/90 via-slate-900 to-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400'
+                    : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                      <span className="text-base font-bold text-white font-heading">
                         Engineer’s Brain
                       </span>
-                      {formData.game === 'brain' && <CheckCircle2 className="w-4 h-4 text-cyan-400" />}
                     </div>
-                    <p className="text-xs text-slate-400">
-                      High-stakes technical quiz with speed bonus points.
-                    </p>
-                  </button>
+                    {formData.game === 'brain' && (
+                      <CheckCircle2 className="w-5 h-5 text-cyan-400" />
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed pl-10">
+                    High-stakes rapid buzzer quiz covering electronics fundamentals, circuit diagrams, and semiconductor logic.
+                  </p>
+                </div>
+                <div className="mt-4 pl-10 flex items-center gap-2 text-[11px] font-mono text-cyan-300 pt-2 border-t border-slate-800/80">
+                  <span>3 Rounds</span> • <span>30s Per Question</span> • <span>Speed Tier Points</span>
+                </div>
+              </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, game: 'pictionary' })}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      formData.game === 'pictionary'
-                        ? 'bg-sky-950/60 border-sky-400 shadow-md shadow-sky-500/20'
-                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-white font-heading">
+              {/* Option 2: Pictionary */}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, game: 'pictionary' })}
+                className={`p-5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  formData.game === 'pictionary'
+                    ? 'bg-gradient-to-br from-indigo-950/90 via-slate-900 to-slate-950 border-indigo-400 shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-400'
+                    : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <span className="text-base font-bold text-white font-heading">
                         Engineering Pictionary
                       </span>
-                      {formData.game === 'pictionary' && <CheckCircle2 className="w-4 h-4 text-sky-400" />}
                     </div>
-                    <p className="text-xs text-slate-400">
-                      Visual sketching & engineering concept deduction challenge.
-                    </p>
-                  </button>
+                    {formData.game === 'pictionary' && (
+                      <CheckCircle2 className="w-5 h-5 text-indigo-400" />
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed pl-10">
+                    Visual sketch guessing challenge: decode schematic symbols, hardware components, and engineering concepts live.
+                  </p>
                 </div>
+                <div className="mt-4 pl-10 flex items-center gap-2 text-[11px] font-mono text-indigo-300 pt-2 border-t border-slate-800/80">
+                  <span>3 Rounds</span> • <span>Digital Canvas</span> • <span>Deduction Points</span>
+                </div>
+              </button>
+
+              {/* Option 3: BOTH GAMES */}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, game: 'both' })}
+                className={`p-5 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  formData.game === 'both'
+                    ? 'bg-gradient-to-br from-amber-950/80 via-slate-900 to-cyan-950/80 border-amber-400 shadow-xl shadow-amber-500/20 ring-1 ring-amber-400'
+                    : 'bg-slate-950/80 border-slate-800 hover:border-amber-500/40'
+                }`}
+              >
+                <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-400 to-amber-500 text-slate-950 text-[10px] font-mono font-black px-2.5 py-0.5 rounded-bl-lg uppercase tracking-wider">
+                  ★ ALL-ROUNDER
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2 pr-20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                        <Trophy className="w-4 h-4" />
+                      </div>
+                      <span className="text-base font-bold text-white font-heading">
+                        Both Competitions
+                      </span>
+                    </div>
+                    {formData.game === 'both' && (
+                      <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed pl-10">
+                    The ultimate engineering showdown! Play both Engineer’s Brain AND Engineering Pictionary with your squad.
+                  </p>
+                </div>
+                <div className="mt-4 pl-10 flex items-center gap-2 text-[11px] font-mono text-amber-300 pt-2 border-t border-slate-800/80">
+                  <span>Double Arena Entry</span> • <span>6 Rounds</span> • <span>Dual Podium</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* STEP 2: Squad Name & Department */}
+          <div className="space-y-3">
+            <label className="text-xs font-mono text-cyan-400 uppercase font-bold tracking-wider">
+              2. Squad Identification *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Unique Squad / Team Name *</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. VLSI Innovators, Silicon Titans"
+                  value={formData.team_name}
+                  onChange={(e) => setFormData({ ...formData, team_name: e.target.value })}
+                  className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 transition-all"
+                />
               </div>
 
-              {/* Team Name & Student Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Department / Branch</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  placeholder="e.g. Electronics Engineering (VLSI Design and Technology)"
+                  className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* STEP 3: Exactly 3 Squad Members */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-mono text-cyan-400 uppercase font-bold tracking-wider">
+                3. Squad Members (Exactly 3 Members Required) *
+              </label>
+              <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                1 Lead Captain + 2 Members
+              </span>
+            </div>
+
+            {/* Captain / Member 1 */}
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/90 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-mono font-bold text-cyan-300">
+                <Crown className="w-4 h-4 text-amber-400" />
+                <span>MEMBER 1: SQUAD CAPTAIN & PRIMARY CONTACT</span>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-slate-300 font-bold">
-                    Team Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. VLSI Innovators"
-                    value={formData.team_name}
-                    onChange={(e) => setFormData({ ...formData, team_name: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-slate-300 font-bold">
-                    Student Name (Captain / Lead) *
+                  <label className="text-xs font-mono text-slate-400">
+                    Captain Full Name *
                   </label>
                   <input
                     type="text"
@@ -392,249 +580,306 @@ export default function RegisterPage({ eventSettings }) {
                     placeholder="e.g. Aditya Shinde"
                     value={formData.student_name}
                     onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono text-slate-400">
+                    Captain WhatsApp Mobile Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="e.g. 9822011223"
+                    value={formData.student_mobile}
+                    onChange={(e) => setFormData({ ...formData, student_mobile: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Mobile Number */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-mono text-slate-300 font-bold">
-                  Student Mobile Number (WhatsApp) *
+            {/* Member 2 & 3 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/90 space-y-1.5">
+                <label className="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Member 2 Full Name *</span>
                 </label>
                 <input
-                  type="tel"
+                  type="text"
                   required
-                  placeholder="e.g. 9822011223"
-                  value={formData.student_mobile}
-                  onChange={(e) => setFormData({ ...formData, student_mobile: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
+                  placeholder="e.g. Rahul Deshmukh"
+                  value={formData.member_name_2}
+                  onChange={(e) => setFormData({ ...formData, member_name_2: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
                 />
               </div>
 
-              {/* Squad Members */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-slate-300 font-bold">
-                    Member Name 2
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Rahul Deshmukh"
-                    value={formData.member_name_2}
-                    onChange={(e) => setFormData({ ...formData, member_name_2: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-slate-300 font-bold">
-                    Member Name 3
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Pooja Kulkarni"
-                    value={formData.member_name_3}
-                    onChange={(e) => setFormData({ ...formData, member_name_3: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/90 space-y-1.5">
+                <label className="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Member 3 Full Name *</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Pooja Kulkarni"
+                  value={formData.member_name_3}
+                  onChange={(e) => setFormData({ ...formData, member_name_3: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400"
+                />
               </div>
-
-              {/* Error Message */}
-              {submitError && (
-                <div className="p-4 rounded-xl bg-rose-950/80 border border-rose-500/50 text-xs font-mono text-rose-300 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{submitError}</span>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-4 rounded-2xl font-black text-lg text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-xl shadow-cyan-500/30 hover:shadow-cyan-400/50 hover:scale-[1.01] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Registering Squad...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-5 h-5" />
-                      <span>COMPLETE TEAM REGISTRATION (INSTANT)</span>
-                    </>
-                  )}
-                </button>
-                <p className="text-[11px] text-slate-400 font-mono text-center mt-2">
-                  ✓ Instant entry into tournament database • Verified immediately for event day
-                </p>
-              </div>
-
-            </form>
+            </div>
           </div>
-        )}
 
-        {/* TAB 2: GOOGLE FORM REGISTRATION */}
-        {activeTab === 'google' && (
-          <div className="space-y-6">
-            
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-bold text-white font-heading">
-                    Official Department Google Form
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    Already filled the Google Form? Click "Sync Google Form Responses" to update the website immediately!
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSyncGoogleNow}
-                    disabled={syncingGoogle}
-                    className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 text-slate-950 shadow-md shadow-cyan-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  >
-                    {syncingGoogle ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                    <span>Sync Google Form</span>
-                  </button>
-                  <a
-                    href={googleFormUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5"
-                  >
-                    <span>Open Form</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              </div>
-
-              {/* Sync Status Banner */}
-              {syncGoogleMessage && (
-                <div className={`p-3 rounded-xl text-xs font-mono border ${
-                  syncGoogleMessage.success 
-                    ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300' 
-                    : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
-                }`}>
-                  {syncGoogleMessage.text}
-                </div>
-              )}
+          {/* STEP 4: Squad Security & Access Password */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-slate-950/90 border border-cyan-500/30 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+              <label className="text-xs font-mono text-cyan-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-cyan-400" />
+                <span>4. Squad Security & Access Password *</span>
+              </label>
+              <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/50 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                Arena Entry Protection
+              </span>
             </div>
 
-            {/* Toggle Embedded View */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-slate-400">
-                Want to fill the Google Form without opening a new tab?
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Create a secure password for your squad. You will need this password alongside your Team Name or WhatsApp Mobile to unlock live rounds in the competition arenas.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Create Squad Password *</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Min 4 characters (e.g. titans@26)"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-300 p-1 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Confirm Password *</span>
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Re-enter password"
+                  value={formData.confirm_password}
+                  onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white font-mono text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {submitError && (
+            <div className="p-4 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-xs font-mono text-rose-300 flex items-center gap-2.5 animate-shake">
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-4 sm:py-5 rounded-2xl font-black text-base sm:text-lg text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-xl shadow-cyan-500/30 hover:shadow-cyan-400/50 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-3"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <span>Submitting & Saving Squad into Database...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5" />
+                  <span>CONFIRM & REGISTER SQUAD (INSTANT DATABASE ENTRY)</span>
+                </>
+              )}
+            </button>
+            <p className="text-[11px] text-slate-400 font-mono text-center mt-3">
+              ⚡ Your squad will immediately appear in the registered teams list below and in the Live Dashboard!
+            </p>
+          </div>
+
+        </form>
+      </div>
+
+      {/* LIVE REGISTERED SQUADS DIRECTORY (DATABASE DISPLAY) */}
+      <div className="glass-card p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-xs font-mono text-emerald-400 uppercase font-bold tracking-widest">
+                LIVE DATABASE DIRECTORY
               </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white font-heading mt-1">
+              Registered Squads ({teams.length})
+            </h3>
+            <p className="text-xs text-slate-400">
+              Brain: <strong className="text-cyan-400">{brainCount}</strong> | Pictionary: <strong className="text-indigo-400">{pictionaryCount}</strong> | Both: <strong className="text-amber-400">{bothCount}</strong>
+            </p>
+          </div>
+
+          {/* Controls: Search & Game Filter */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search squad or member..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-4 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-white focus:outline-none focus:border-cyan-400 w-48 sm:w-60"
+              />
+            </div>
+
+            <div className="flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono">
               <button
                 type="button"
-                onClick={() => setShowEmbed(!showEmbed)}
-                className="px-3 py-1.5 rounded-xl text-xs font-mono text-cyan-400 hover:text-cyan-300 border border-cyan-500/20 bg-slate-900 cursor-pointer"
+                onClick={() => setFilterGame('all')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  filterGame === 'all' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+                }`}
               >
-                {showEmbed ? 'Hide Embedded Form' : 'Show Embedded Form'}
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterGame('brain')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  filterGame === 'brain' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Brain
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterGame('pictionary')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  filterGame === 'pictionary' ? 'bg-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Pictionary
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterGame('both')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                  filterGame === 'both' ? 'bg-amber-400 text-slate-950 font-bold' : 'text-amber-400/80 hover:text-amber-300'
+                }`}
+              >
+                Both ({bothCount})
               </button>
             </div>
 
-            {showEmbed ? (
-              <div className="relative rounded-2xl overflow-hidden border border-cyan-500/30 bg-slate-950 shadow-inner">
-                <iframe
-                  src={embedUrl}
-                  width="100%"
-                  height="820"
-                  frameBorder="0"
-                  marginHeight="0"
-                  marginWidth="0"
-                  title="Google Form Registration"
-                  className="w-full bg-white rounded-2xl"
-                >
-                  Loading Google Form…
-                </iframe>
-              </div>
-            ) : (
-              <div className="text-center py-6 p-8 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
-                <p className="text-sm text-slate-300 max-w-lg mx-auto">
-                  Click below to open the official Google Form in a new tab. When you submit, our system auto-syncs your entry into the tournament database.
-                </p>
-                <a
-                  href={googleFormUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-3 px-10 py-4 rounded-2xl font-black text-lg text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-xl shadow-cyan-500/30 hover:scale-[1.02] transition-all"
-                >
-                  <span>FILL OUT GOOGLE FORM</span>
-                  <ExternalLink className="w-5 h-5" />
-                </a>
-              </div>
-            )}
-
+            <button
+              type="button"
+              onClick={fetchRegisteredTeams}
+              disabled={loadingTeams}
+              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-cyan-300 transition-all cursor-pointer"
+              title="Refresh database records"
+            >
+              <RefreshCw className={`w-4 h-4 ${loadingTeams ? 'animate-spin text-cyan-400' : ''}`} />
+            </button>
           </div>
-        )}
-
-      </div>
-
-      {/* TEAM REGISTRATION STATUS LOOKUP */}
-      <div className="glass-card p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
-        <div className="space-y-1">
-          <h3 className="text-lg font-bold text-white font-heading flex items-center gap-2">
-            <Search className="w-5 h-5 text-cyan-400" />
-            Check Your Team Registration Status
-          </h3>
-          <p className="text-xs text-slate-400">
-            Enter your registered Team Name or Captain Name to check whether your squad has been verified.
-          </p>
         </div>
 
-        <form onSubmit={handleCheckStatus} className="flex gap-3 max-w-xl">
-          <input
-            type="text"
-            placeholder="Enter Team Name..."
-            value={searchTeam}
-            onChange={(e) => setSearchTeam(e.target.value)}
-            className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-cyan-400 focus:outline-none font-mono"
-          />
-          <button
-            type="submit"
-            disabled={isSearching || !searchTeam.trim()}
-            className="px-6 py-3 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 disabled:opacity-40 cursor-pointer"
-          >
-            {isSearching ? 'Searching...' : 'Lookup Status'}
-          </button>
-        </form>
+        {/* Squad Cards Grid */}
+        {loadingTeams ? (
+          <div className="text-center py-12 space-y-3 font-mono text-xs text-slate-400">
+            <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p>Fetching registered squads from database...</p>
+          </div>
+        ) : filteredTeams.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredTeams.map((team, idx) => {
+              const isJustRegistered = registeredTeam && registeredTeam.team_name.toLowerCase() === team.team_name.toLowerCase();
+              return (
+                <div
+                  key={team.id || idx}
+                  className={`p-5 rounded-2xl border transition-all relative overflow-hidden ${
+                    isJustRegistered 
+                      ? 'bg-emerald-950/40 border-emerald-400 shadow-xl shadow-emerald-500/20 ring-1 ring-emerald-400' 
+                      : 'bg-slate-950/80 border-slate-800/90 hover:border-cyan-500/40'
+                  }`}
+                >
+                  {isJustRegistered && (
+                    <div className="absolute top-0 right-0 bg-emerald-500 text-slate-950 text-[10px] font-mono font-black px-2.5 py-0.5 rounded-bl-lg uppercase">
+                      ★ Just Registered (Your Squad)
+                    </div>
+                  )}
 
-        {searchResult && (
-          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 animate-in fade-in duration-200">
-            {searchResult.found ? (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-white">{searchResult.team.team_name}</h4>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-cyan-400 border border-slate-700">
-                      {searchResult.team.game === 'brain' ? "Engineer's Brain" : 'Pictionary'}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border uppercase font-bold ${
+                      team.game === 'both'
+                        ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+                        : team.game === 'brain'
+                          ? 'bg-cyan-950 text-cyan-300 border-cyan-500/30'
+                          : 'bg-indigo-950 text-indigo-300 border-indigo-500/30'
+                    }`}>
+                      {team.game === 'both' ? '★ Both Competitions' : team.game === 'brain' ? "Engineer's Brain" : "Engineering Pictionary"}
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
+                      <CheckCircle2 className="w-3 h-3" />
+                      VERIFIED
                     </span>
                   </div>
-                  <p className="text-slate-400 font-mono">
-                    Captain: {searchResult.team.captain} • Squad: {searchResult.team.member1}, {searchResult.team.member2}, {searchResult.team.member3}
-                  </p>
-                </div>
 
-                <div>
-                  <span className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider ${
-                    searchResult.team.registration_status === 'VERIFIED'
-                      ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                      : 'bg-amber-950 text-amber-300 border border-amber-500/40'
-                  }`}>
-                    {searchResult.team.registration_status}
-                  </span>
+                  <h4 className="text-lg font-black text-white font-heading truncate mb-2">
+                    {team.team_name}
+                  </h4>
+
+                  <div className="space-y-1 text-xs font-mono text-slate-300 border-t border-slate-800/80 pt-3">
+                    <div className="flex items-center gap-1 text-cyan-300 font-bold">
+                      <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate">Capt: {team.captain}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 truncate pl-4">
+                      2. {team.member2 || 'Member 2'}
+                    </div>
+                    <div className="text-[11px] text-slate-400 truncate pl-4">
+                      3. {team.member3 || 'Member 3'}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                    <span>Squad of 3</span>
+                    <span>Score: <strong className="text-cyan-400">{team.score || 0}</strong></span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <p className="text-xs text-rose-400 font-mono">{searchResult.message}</p>
-            )}
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12 space-y-3 font-mono text-xs text-slate-400">
+            <Users className="w-8 h-8 text-slate-600 mx-auto" />
+            <p>
+              {searchQuery ? `No squads found matching "${searchQuery}"` : 'No squads registered yet. Be the first squad to register above!'}
+            </p>
           </div>
         )}
       </div>

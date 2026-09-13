@@ -3,7 +3,7 @@ import { ShieldCheck, KeyRound, User, AlertCircle, Cpu, ArrowRight } from 'lucid
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminLoginPage({ setCurrentPage }) {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ export default function AdminLoginPage({ setCurrentPage }) {
             ADMIN PORTAL LOGIN
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 font-mono">
-            Engineers’ Day 2026 • Secure Event Control Panel
+            Engineer's Day 2026 • Secure Event Control Panel
           </p>
         </div>
 
@@ -68,7 +68,7 @@ export default function AdminLoginPage({ setCurrentPage }) {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  placeholder="Enter Admin Username"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-cyan-400 focus:outline-none font-mono"
                 />
               </div>
@@ -85,15 +85,10 @@ export default function AdminLoginPage({ setCurrentPage }) {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="Enter Admin Password"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-cyan-400 focus:outline-none"
                 />
               </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] font-mono text-slate-400 flex items-center justify-between">
-              <span>Default Demo: <strong className="text-cyan-300">admin</strong></span>
-              <span>Pass: <strong className="text-cyan-300">admin@engineer2026</strong></span>
             </div>
 
             <button
@@ -108,7 +103,7 @@ export default function AdminLoginPage({ setCurrentPage }) {
         </div>
 
         <div className="text-center text-xs text-slate-500 font-mono">
-          <span>Engineers’ Day 2026 Platform | Engineered by </span>
+          <span>Engineer's Day 2026 Platform | Engineered by </span>
           <strong className="text-slate-400">Aditya Shinde</strong>
         </div>
 

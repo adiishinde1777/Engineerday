@@ -19,8 +19,10 @@ import {
 } from 'lucide-react';
 import CountdownTimer from '../components/CountdownTimer';
 import { api } from '../utils/api';
+import { useSquad } from '../context/SquadContext';
 
 export default function HomePage({ setCurrentPage, eventSettings }) {
+  const { currentSquad, isSquadRegistered } = useSquad();
   const [topTeams, setTopTeams] = useState([]);
   const [facultyList, setFacultyList] = useState([]);
 
@@ -60,7 +62,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
 
           {/* Main Title */}
           <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-cyan-300 font-heading leading-tight sm:leading-none">
-            ENGINEERS’ DAY 2026
+            ENGINEER'S DAY 2026
           </h1>
 
           {/* Subtitle */}
@@ -74,13 +76,23 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
 
           {/* Action Buttons */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <button
-              onClick={() => window.open('https://forms.gle/Wz7TfiFHX1hNsakb8', '_blank', 'noopener,noreferrer')}
-              className="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/50 transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <span>Register for Event</span>
-              <ExternalLink className="w-4 h-4" />
-            </button>
+            {isSquadRegistered ? (
+              <button
+                onClick={() => setCurrentPage(currentSquad.game === 'pictionary' ? 'pictionary-arena' : 'brain-arena')}
+                className="px-6 py-3.5 rounded-xl font-black text-sm sm:text-base text-slate-950 bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-400 hover:from-emerald-300 hover:to-sky-300 shadow-xl shadow-cyan-500/40 hover:shadow-cyan-400/60 transition-all flex items-center gap-2 cursor-pointer animate-pulse"
+              >
+                <Zap className="w-4 h-4 fill-current" />
+                <span>Enter {currentSquad.game === 'pictionary' ? 'Pictionary' : 'Brain'} Arena ({currentSquad.team_name})</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setCurrentPage('register')}
+                className="px-6 py-3.5 rounded-xl font-bold text-sm sm:text-base text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/50 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span>Register for Event</span>
+                <Sparkles className="w-4 h-4" />
+              </button>
+            )}
 
             <button
               onClick={() => setCurrentPage('games')}
@@ -96,14 +108,6 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
             >
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
               <span>Live Dashboard</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentPage('admin-login')}
-              className="px-5 py-3.5 rounded-xl font-semibold text-sm sm:text-base text-slate-400 hover:text-white bg-slate-900/50 hover:bg-slate-800/80 border border-slate-800 transition-all flex items-center gap-1.5"
-            >
-              <ShieldCheck className="w-4 h-4 text-indigo-400" />
-              <span>Admin Login</span>
             </button>
           </div>
 
@@ -131,17 +135,75 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
               Two Premier Engineering Arenas
             </h2>
             <p className="text-sm sm:text-base text-slate-400 mt-2">
-              Form your 3-member squad, prepare your intellect, and battle for the prestigious Engineers’ Day trophy.
+              Form your 3-member squad, prepare your intellect, and battle for the prestigious Engineer's Day trophy.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
-            {/* GAME 01: ENGINEER'S BRAIN */}
+            {/* GAME 01: ENGINEERING PICTIONARY (PRIMARY) */}
+            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-indigo-500/40 bg-gradient-to-b from-slate-900/95 to-slate-950/95 relative overflow-hidden group shadow-xl shadow-indigo-950/30">
+              <div className="absolute top-0 right-0 p-4">
+                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-950 text-indigo-400 border border-indigo-500/50 shadow-sm shadow-indigo-500/20">
+                  GAME 01 • PRIMARY COMPETITION
+                </span>
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 p-[2px] mb-5 shadow-lg shadow-indigo-500/20">
+                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                  <Palette className="w-7 h-7 text-indigo-400 group-hover:scale-110 transition-transform" />
+                </div>
+              </div>
+
+              <h3 className="text-2xl sm:text-3xl font-black text-white font-heading tracking-tight">
+                ENGINEERING PICTIONARY
+              </h3>
+              <p className="text-indigo-400 text-base sm:text-lg font-semibold italic mt-1">
+                "Draw it. Guess it. Win it!"
+              </p>
+
+              <p className="text-sm text-slate-300 leading-relaxed mt-3">
+                The flagship arena: Technical concepts, chips, components, and tools are drawn on the live digital whiteboard while your squad races the 30-second stopwatch to deduce and earn maximum speed bonus points!
+              </p>
+
+              {/* Badges */}
+              <div className="grid grid-cols-3 gap-2 mt-6 pt-6 border-t border-slate-800 text-center">
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <p className="text-[10px] font-mono text-slate-400 uppercase">Clock</p>
+                  <p className="text-sm font-bold text-white mt-0.5">30s / Turn</p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <p className="text-[10px] font-mono text-slate-400 uppercase">Squad Size</p>
+                  <p className="text-sm font-bold text-white mt-0.5">3 Members</p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                  <p className="text-[10px] font-mono text-slate-400 uppercase">Evaluation</p>
+                  <p className="text-sm font-bold text-indigo-300 mt-0.5">Speed Bonus</p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  onClick={() => setCurrentPage('pictionary-arena')}
+                  className="flex-1 py-3 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-500/20"
+                >
+                  <Palette className="w-4 h-4" />
+                  Enter Pictionary Arena
+                </button>
+                <button
+                  onClick={() => setCurrentPage('games')}
+                  className="px-4 py-3 rounded-xl font-semibold text-xs sm:text-sm bg-slate-900 text-slate-300 hover:text-white border border-slate-700"
+                >
+                  Rules
+                </button>
+              </div>
+            </div>
+
+            {/* GAME 02: ENGINEER'S BRAIN (SECONDARY) */}
             <div className="glass-card p-6 sm:p-8 rounded-3xl border border-cyan-500/30 bg-gradient-to-b from-slate-900/90 to-slate-950/90 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4">
                 <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-500/40">
-                  GAME 01
+                  GAME 02 • SECONDARY COMPETITION
                 </span>
               </div>
 
@@ -185,64 +247,6 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
                 >
                   <Zap className="w-4 h-4" />
                   Enter Brain Arena
-                </button>
-                <button
-                  onClick={() => setCurrentPage('games')}
-                  className="px-4 py-3 rounded-xl font-semibold text-xs sm:text-sm bg-slate-900 text-slate-300 hover:text-white border border-slate-700"
-                >
-                  Rules
-                </button>
-              </div>
-            </div>
-
-            {/* GAME 02: ENGINEERING PICTIONARY */}
-            <div className="glass-card p-6 sm:p-8 rounded-3xl border border-indigo-500/30 bg-gradient-to-b from-slate-900/90 to-slate-950/90 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4">
-                <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-950 text-indigo-400 border border-indigo-500/40">
-                  GAME 02
-                </span>
-              </div>
-
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-[2px] mb-5 shadow-lg shadow-indigo-500/20">
-                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                  <Palette className="w-7 h-7 text-indigo-400 group-hover:scale-110 transition-transform" />
-                </div>
-              </div>
-
-              <h3 className="text-2xl sm:text-3xl font-black text-white font-heading tracking-tight">
-                ENGINEERING PICTIONARY
-              </h3>
-              <p className="text-indigo-400 text-base sm:text-lg font-semibold italic mt-1">
-                "Draw it. Guess it. Win it!"
-              </p>
-
-              <p className="text-sm text-slate-300 leading-relaxed mt-3">
-                One teammate gets an engineering concept (VLSI, civil structures, robotics, famous tools) and illustrates it on the live digital canvas while teammates race the stopwatch to guess.
-              </p>
-
-              {/* Badges */}
-              <div className="grid grid-cols-3 gap-2 mt-6 pt-6 border-t border-slate-800 text-center">
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                  <p className="text-[10px] font-mono text-slate-400 uppercase">Structure</p>
-                  <p className="text-sm font-bold text-white mt-0.5">3 Rounds</p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                  <p className="text-[10px] font-mono text-slate-400 uppercase">Squad Size</p>
-                  <p className="text-sm font-bold text-white mt-0.5">3 Members</p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                  <p className="text-[10px] font-mono text-slate-400 uppercase">Evaluation</p>
-                  <p className="text-sm font-bold text-indigo-300 mt-0.5">Time-Based</p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center gap-3">
-                <button
-                  onClick={() => setCurrentPage('pictionary-arena')}
-                  className="flex-1 py-3 rounded-xl font-bold text-xs sm:text-sm bg-indigo-500 hover:bg-indigo-400 text-white transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-500/20"
-                >
-                  <Palette className="w-4 h-4" />
-                  Enter Pictionary Arena
                 </button>
                 <button
                   onClick={() => setCurrentPage('games')}
@@ -333,7 +337,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
           <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 text-xs sm:text-sm text-slate-300">
             <Code2 className="w-4 h-4 text-cyan-400" />
             <span>
-              Engineers’ Day 2026 Web Platform Engineered with Precision by <strong className="text-cyan-300 font-bold tracking-wide">Aditya Shinde</strong>
+              Engineer's Day 2026 Web Platform Engineered with Precision by <strong className="text-cyan-300 font-bold tracking-wide">Aditya Shinde</strong>
             </span>
           </div>
         </div>

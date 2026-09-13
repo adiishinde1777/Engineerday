@@ -83,16 +83,16 @@ router.put('/scoring/:game', requireAdmin, (req, res) => {
       tie_breaker = coalesce(?, tie_breaker)
     WHERE game = ?
   `).run(
-    base_points,
-    timer_duration,
-    negative_points,
-    tier_0_5,
-    tier_6_10,
-    tier_11_15,
-    tier_16_20,
-    tier_21_25,
-    tier_26_30,
-    tie_breaker,
+    base_points !== undefined ? Number(base_points) : null,
+    timer_duration !== undefined ? Number(timer_duration) : null,
+    negative_points !== undefined ? Number(negative_points) : null,
+    tier_0_5 !== undefined ? Number(tier_0_5) : null,
+    tier_6_10 !== undefined ? Number(tier_6_10) : null,
+    tier_11_15 !== undefined ? Number(tier_11_15) : null,
+    tier_16_20 !== undefined ? Number(tier_16_20) : null,
+    tier_21_25 !== undefined ? Number(tier_21_25) : null,
+    tier_26_30 !== undefined ? Number(tier_26_30) : null,
+    tie_breaker ?? null,
     game
   );
 

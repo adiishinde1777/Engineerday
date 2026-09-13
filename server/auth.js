@@ -29,3 +29,25 @@ export function requireAdmin(req, res, next) {
     return res.status(401).json({ success: false, message: 'Unauthorized: Invalid or expired token' });
   }
 }
+
+export function checkIsAdmin(req) {
+  let token = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  } else if (req.headers && req.headers['x-access-token']) {
+    token = req.headers['x-access-token'];
+  }
+
+  if (!token) return false;
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return Boolean(decoded);
+  } catch {
+    return false;
+  }
+}
+

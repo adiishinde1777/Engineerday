@@ -63,6 +63,39 @@ export default function OverviewTab({ setActiveTab, setCurrentPage }) {
     { label: 'TOTAL FACULTY', val: stats.totalFaculty, sub: 'Department Mentors', icon: GraduationCap, color: 'text-purple-400', border: 'border-purple-500/30' },
   ];
 
+  const [eventSettings, setEventSettings] = useState(null);
+  const [updatingWinners, setUpdatingWinners] = useState(false);
+
+  useEffect(() => {
+    api.getSettings().then(res => {
+      if (res.success && res.eventSettings) {
+        setEventSettings(res.eventSettings);
+      }
+    }).catch(console.error);
+  }, []);
+
+  const isWinnersFinalized = Boolean(
+    eventSettings?.winnersFinalized === 'true' ||
+    eventSettings?.winnersFinalized === true ||
+    eventSettings?.winnersFinalized === '1'
+  );
+
+  const handleToggleWinners = async () => {
+    setUpdatingWinners(true);
+    try {
+      const nextVal = isWinnersFinalized ? 'false' : 'true';
+      const updated = { ...eventSettings, winnersFinalized: nextVal };
+      const res = await api.updateEventSettings(updated);
+      if (res.success) {
+        setEventSettings(updated);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update winners visibility');
+    } finally {
+      setUpdatingWinners(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Top Banner */}
@@ -72,25 +105,92 @@ export default function OverviewTab({ setActiveTab, setCurrentPage }) {
             ADMIN OVERVIEW DASHBOARD
           </h2>
           <p className="text-xs font-mono text-slate-400 mt-0.5">
-            Engineers’ Day 2026 • Real-Time Telemetry & Tournament Health
+            Engineer's Day 2026 • Real-Time Telemetry & Tournament Health
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => setActiveTab('brain')}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/20 cursor-pointer"
           >
             <Brain className="w-3.5 h-3.5" />
             Control Brain
           </button>
           <button
             onClick={() => setActiveTab('pictionary')}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer"
           >
             <Palette className="w-3.5 h-3.5" />
             Control Pictionary
           </button>
+        </div>
+      </div>
+
+      {/* QUICK WINNERS PUBLICATION CONTROL CARD */}
+      <div className={`p-5 sm:p-6 rounded-3xl border-2 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+        isWinnersFinalized 
+          ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/40 shadow-xl shadow-emerald-500/10'
+          : 'bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border-amber-500/40 shadow-xl shadow-amber-500/10'
+      }`}>
+        <div className="flex items-center gap-3.5">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+            isWinnersFinalized
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+          }`}>
+            <Trophy className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-white font-heading">
+                Public Winners Announcement
+              </span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black uppercase ${
+                isWinnersFinalized 
+                  ? 'bg-emerald-500 text-slate-950' 
+                  : 'bg-amber-500 text-slate-950'
+              }`}>
+                {isWinnersFinalized ? '● PUBLISHED TO STUDENTS' : '🔒 SEALED / HIDDEN FROM PUBLIC'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-1">
+              {isWinnersFinalized
+                ? 'The official winners podium is LIVE and visible to all general students on the Hall of Fame page.'
+                : 'Winners are hidden from general visitors until you explicitly approve and publish.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button
+            type="button"
+            disabled={updatingWinners}
+            onClick={handleToggleWinners}
+            className={`w-full md:w-auto px-5 py-2.5 rounded-xl font-mono text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50 ${
+              isWinnersFinalized
+                ? 'bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30'
+                : 'bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-300 hover:to-green-400 text-slate-950 shadow-emerald-500/20'
+            }`}
+          >
+            {updatingWinners ? (
+              <span>Updating...</span>
+            ) : isWinnersFinalized ? (
+              <span>Lock Results (Hide from Public)</span>
+            ) : (
+              <span>Publish Winners to Public Now</span>
+            )}
+          </button>
+          {setCurrentPage && (
+            <button
+              type="button"
+              onClick={() => setCurrentPage('winners')}
+              className="px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 text-xs font-mono text-cyan-300 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>View Page</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

@@ -10,7 +10,7 @@ export default function EventSettingsTab({ onSettingsUpdated }) {
     eventDescription: '',
     googleFormUrl: 'https://forms.google.com',
     eventStatus: 'AUTO',
-    footerText: 'Engineers’ Day 2026 | Designed & Developed by Aditya Shinde',
+    footerText: "Engineer's Day 2026 | Designed & Developed by Aditya Shinde",
     reportingInstructions: 'All team members must report at the Technical Auditorium 30 minutes prior to Round 1 with valid college ID cards.',
     winnersFinalized: 'false'
   });

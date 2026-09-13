@@ -27,7 +27,7 @@ export default function ProjectorScoreboard({ onExit }) {
 
   const filteredTeams = scoreboard.filter((t) => {
     if (filterGame === 'all') return true;
-    return t.game === filterGame;
+    return t.game === filterGame || t.game === 'both';
   });
 
   return (
@@ -48,7 +48,7 @@ export default function ProjectorScoreboard({ onExit }) {
           <div>
             <div className="flex items-center gap-3">
               <span className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-300 font-heading tracking-wide">
-                ENGINEERS’ DAY 2026
+                ENGINEER'S DAY 2026
               </span>
               <span className="px-3 py-1 rounded-md bg-emerald-500/20 text-emerald-400 font-mono text-xs font-bold border border-emerald-500/40 animate-pulse">
                 ● LIVE SCOREBOARD
@@ -181,7 +181,7 @@ export default function ProjectorScoreboard({ onExit }) {
           <span>LIVE AUDITORIUM DISPLAY • REFRESH-FREE REAL-TIME SYNC</span>
         </div>
         <div>
-          <span>Engineers’ Day 2026 | Designed & Developed by <strong className="text-cyan-300">Aditya Shinde</strong></span>
+          <span>Engineer's Day 2026 | Designed & Developed by <strong className="text-cyan-300">Aditya Shinde</strong></span>
         </div>
       </div>
     </div>

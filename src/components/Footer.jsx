@@ -2,7 +2,7 @@ import React from 'react';
 import { Cpu, Heart, Code2, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react';
 
 export default function Footer({ setCurrentPage, eventSettings }) {
-  const footerText = eventSettings?.footerText || "Engineers’ Day 2026 | Designed & Developed by Aditya Shinde";
+  const footerText = eventSettings?.footerText || "Engineer's Day 2026 | Designed & Developed by Aditya Shinde";
   const eventDate = "15 September 2026";
 
   return (
@@ -24,7 +24,7 @@ export default function Footer({ setCurrentPage, eventSettings }) {
                 </div>
               </div>
               <span className="text-xl font-bold tracking-tight text-white font-heading">
-                ENGINEERS’ DAY 2026
+                ENGINEER'S DAY 2026
               </span>
             </div>
             <p className="text-cyan-400 text-sm font-semibold tracking-wide">
@@ -62,7 +62,7 @@ export default function Footer({ setCurrentPage, eventSettings }) {
               </li>
               <li>
                 <button 
-                  onClick={() => window.open('https://forms.gle/Wz7TfiFHX1hNsakb8', '_blank', 'noopener,noreferrer')} 
+                  onClick={() => setCurrentPage('register')} 
                   className="hover:text-cyan-400 transition-colors text-cyan-400 font-medium cursor-pointer"
                 >
                   Register for Event

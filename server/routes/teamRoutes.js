@@ -1,7 +1,9 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import db, { updateRanks } from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { broadcastScoreboard } from '../socketHandler.js';
+import { syncToMySQL } from '../mysqlSync.js';
 
 const router = express.Router();
 
@@ -12,7 +14,7 @@ router.get('/', (req, res) => {
   const params = [];
 
   if (game && game !== 'all') {
-    sql += ' AND game = ?';
+    sql += " AND (game = ? OR game = 'both')";
     params.push(game);
   }
   if (status && status !== 'all') {
@@ -117,7 +119,14 @@ router.post('/', (req, res) => {
   const body = req.body || {};
   const team_name = (body.team_name || body.teamName || '').trim();
   const gameRaw = (body.game || 'brain').toLowerCase();
-  const game = gameRaw.includes('pic') ? 'pictionary' : 'brain';
+  let game = 'brain';
+  if (gameRaw === 'both' || gameRaw.includes('both') || (gameRaw.includes('brain') && gameRaw.includes('pic'))) {
+    game = 'both';
+  } else if (gameRaw.includes('pic')) {
+    game = 'pictionary';
+  } else {
+    game = 'brain';
+  }
   const captain = (body.captain || body.student_name || body.studentName || body.member1 || '').trim();
   const member1 = (body.member1 || body.student_name || body.studentName || captain).trim();
   const member2 = (body.member2 || body.member_name_2 || body.member2Name || '').trim() || 'Member 2';
@@ -138,13 +147,28 @@ router.post('/', (req, res) => {
 
   const id = `team-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const regStatus = req.body.registration_status || 'VERIFIED';
+  const password = body.password ? String(body.password).trim() : null;
+  const password_hash = password ? bcrypt.hashSync(password, 10) : null;
 
+  const createdAt = new Date().toISOString();
   db.prepare(`
-    INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, registration_status, score, rank, status, is_seed, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 999, 'REGISTERED', 0, ?)
-  `).run(id, team_name, game, captain, member1, member2, member3, contact, regStatus, new Date().toISOString());
+    INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank, status, is_seed, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 999, 'REGISTERED', 0, ?)
+  `).run(id, team_name, game, captain, member1, member2, member3, contact, password_hash, regStatus, createdAt);
 
-  updateRanks(game);
+  syncToMySQL(
+    `INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank_num, status, is_seed, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 999, 'REGISTERED', 0, ?)
+     ON DUPLICATE KEY UPDATE team_name = VALUES(team_name), password_hash = VALUES(password_hash)`,
+    [id, team_name, game, captain, member1, member2, member3, contact, password_hash, regStatus, createdAt]
+  );
+
+  if (game === 'both') {
+    updateRanks('brain');
+    updateRanks('pictionary');
+  } else {
+    updateRanks(game);
+  }
   broadcastScoreboard();
 
   return res.status(201).json({ 
@@ -152,6 +176,62 @@ router.post('/', (req, res) => {
     message: `Team "${team_name}" registered successfully!`, 
     id,
     team: { id, team_name, game, captain, member1, member2, member3, contact, registration_status: regStatus }
+  });
+});
+
+// POST verify squad credentials (Squad Login / Verification)
+router.post('/verify', (req, res) => {
+  const { identifier, password } = req.body || {};
+  if (!identifier || !String(identifier).trim()) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Please enter your registered Team Name or Captain Mobile Number' 
+    });
+  }
+
+  const clean = String(identifier).trim();
+  const cleanPhone = clean.replace(/\D/g, '');
+
+  const team = db.prepare(`
+    SELECT * FROM teams
+    WHERE lower(team_name) = lower(?)
+       OR contact = ?
+       OR (length(?) >= 10 AND replace(replace(replace(contact, ' ', ''), '-', ''), '+91', '') = ?)
+       OR lower(captain) = lower(?)
+    ORDER BY created_at DESC LIMIT 1
+  `).get(clean, clean, cleanPhone, cleanPhone.slice(-10), clean);
+
+  if (!team) {
+    return res.status(404).json({
+      success: false,
+      message: `No squad found matching "${clean}". Please register your team first.`
+    });
+  }
+
+  // If squad has a registered password, verify it
+  if (team.password_hash) {
+    if (!password || !String(password).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password required. Please enter your squad password.'
+      });
+    }
+
+    const isMatch = bcrypt.compareSync(String(password).trim(), team.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect squad password. Please try again.'
+      });
+    }
+  }
+
+  // Return safe squad object (without password_hash)
+  const { password_hash, ...safeTeam } = team;
+  return res.json({
+    success: true,
+    message: `Squad "${team.team_name}" verified successfully!`,
+    squad: safeTeam
   });
 });
 
@@ -176,7 +256,19 @@ router.put('/:id', requireAdmin, (req, res) => {
       status = coalesce(?, status),
       score = coalesce(?, score)
     WHERE id = ?
-  `).run(team_name, game, captain, member1, member2, member3, contact, registration_status, status, score, req.params.id);
+  `).run(
+    team_name ?? null, 
+    game ?? null, 
+    captain ?? null, 
+    member1 ?? null, 
+    member2 ?? null, 
+    member3 ?? null, 
+    contact ?? null, 
+    registration_status ?? null, 
+    status ?? null, 
+    score !== undefined ? Number(score) : null, 
+    req.params.id
+  );
 
   updateRanks(team.game);
   if (game && game !== team.game) {

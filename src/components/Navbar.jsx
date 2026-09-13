@@ -15,17 +15,19 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useSquad } from '../context/SquadContext';
 
 export default function Navbar({ currentPage, setCurrentPage }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated } = useAuth();
   const { isConnected } = useSocket();
+  const { currentSquad, isSquadRegistered, logoutSquad } = useSquad();
 
   const navItems = [
     { id: 'home', label: 'Home' },
     { id: 'games', label: 'Games' },
     { id: 'faculty', label: 'Department Faculty' },
-    { id: 'register', label: 'Registration', isExternal: true, externalUrl: 'https://forms.gle/Wz7TfiFHX1hNsakb8' },
+    { id: 'register', label: 'Registration' },
     { id: 'live-dashboard', label: 'Live Dashboard', isLive: true },
     { id: 'winners', label: 'Winners' },
   ];
@@ -84,7 +86,7 @@ export default function Navbar({ currentPage, setCurrentPage }) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xl sm:text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-300 font-heading">
-                  ENGINEERS’ DAY 2026
+                  ENGINEER'S DAY 2026
                 </span>
               </div>
               <p className="text-[10px] sm:text-xs text-cyan-400 font-mono tracking-wider uppercase font-semibold">
@@ -121,8 +123,25 @@ export default function Navbar({ currentPage, setCurrentPage }) {
             })}
           </nav>
 
-          {/* Action Buttons: Admin & Projector */}
+          {/* Action Buttons: Squad Status, Admin & Projector */}
           <div className="hidden lg:flex items-center gap-3">
+            {isSquadRegistered && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-xs font-mono text-emerald-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="font-bold truncate max-w-[130px]" title={currentSquad.team_name}>
+                  {currentSquad.team_name}
+                </span>
+                <button
+                  type="button"
+                  onClick={logoutSquad}
+                  className="text-slate-400 hover:text-rose-300 ml-1 text-sm font-bold cursor-pointer"
+                  title="Switch Squad"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => setCurrentPage('projector-scoreboard')}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-mono font-medium text-slate-300 bg-slate-900/80 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 transition-all"
@@ -131,11 +150,10 @@ export default function Navbar({ currentPage, setCurrentPage }) {
               <Tv className="w-3.5 h-3.5 text-indigo-400" />
               Projector Mode
             </button>
-
             {isAuthenticated ? (
               <button
                 onClick={() => setCurrentPage('admin')}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-md shadow-cyan-500/25 transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-md shadow-cyan-500/25 transition-all cursor-pointer"
               >
                 <ShieldCheck className="w-4 h-4" />
                 Admin Dashboard
@@ -143,7 +161,7 @@ export default function Navbar({ currentPage, setCurrentPage }) {
             ) : (
               <button
                 onClick={() => setCurrentPage('admin-login')}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-cyan-300 border border-cyan-500/40 hover:bg-cyan-950/40 transition-all"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-cyan-300 border border-cyan-500/40 hover:bg-cyan-950/40 transition-all cursor-pointer"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Admin Login
@@ -170,18 +188,23 @@ export default function Navbar({ currentPage, setCurrentPage }) {
             <button
               key={item.id}
               onClick={() => handleItemClick(item)}
-              className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium flex items-center justify-between ${
-                currentPage === item.id ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/30' : 'text-slate-300 hover:bg-slate-900'
+              className={`w-full text-left px-4 py-3 rounded-xl font-mono text-sm flex items-center justify-between transition-colors ${
+                currentPage === item.id
+                  ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
+                  : 'text-slate-300 hover:bg-slate-900 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-2">
-                <span>{item.label}</span>
-                {item.isExternal && <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />}
-              </span>
-              {item.isLive && <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono">LIVE</span>}
+              <span>{item.label}</span>
+              {item.isLive && (
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  LIVE
+                </span>
+              )}
             </button>
           ))}
-          <div className="pt-3 border-t border-slate-800 flex flex-col gap-2">
+
+          <div className="pt-3 border-t border-slate-800/80 space-y-2">
             <button
               onClick={() => {
                 setCurrentPage('projector-scoreboard');

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { sound } from '../utils/soundEffects';
+import { api } from '../utils/api';
 
 const SocketContext = createContext(null);
 
@@ -20,6 +21,23 @@ export function SocketProvider({ children }) {
   });
 
   useEffect(() => {
+    // Initial fetch of session state from database
+    api.getGameSession('brain')
+      .then((res) => {
+        if (res.success && res.session) {
+          setBrainSession(res);
+        }
+      })
+      .catch(() => {});
+
+    api.getGameSession('pictionary')
+      .then((res) => {
+        if (res.success && res.session) {
+          setPictionarySession(res);
+        }
+      })
+      .catch(() => {});
+
     // In dev, Vite proxies /socket.io to backend
     const s = io(window.location.origin, {
       reconnectionAttempts: 10,
@@ -39,6 +57,15 @@ export function SocketProvider({ children }) {
     // Scoreboard updates
     s.on('scoreboard_updated', (teams) => {
       setScoreboard(teams);
+    });
+
+    // Session state from server
+    s.on('session_state', (data) => {
+      if (data?.session?.game === 'brain') {
+        setBrainSession(data);
+      } else if (data?.session?.game === 'pictionary') {
+        setPictionarySession(data);
+      }
     });
 
     // Live updates for brain

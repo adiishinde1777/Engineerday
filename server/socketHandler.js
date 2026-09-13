@@ -1,6 +1,7 @@
 import db, { updateRanks } from './db.js';
 
 let ioInstance = null;
+export const liveTeamQuestions = {};
 const activeTimers = {
   brain: null,
   pictionary: null
@@ -42,6 +43,17 @@ export function setupSocketIO(io) {
     // Pictionary drawing events
     socket.on('draw_stroke', (strokeData) => {
       socket.to('game_pictionary').emit('draw_stroke', strokeData);
+    });
+
+    // Team question tracking (which question the squad is currently on)
+    socket.on('team_viewing_question', ({ teamId, questionNumber }) => {
+      if (teamId) {
+        liveTeamQuestions[teamId] = Number(questionNumber) || 1;
+        io.to('game_brain').emit('team_progress_update', {
+          teamId,
+          questionNumber: Number(questionNumber) || 1
+        });
+      }
     });
 
     socket.on('clear_canvas', () => {
@@ -129,9 +141,18 @@ export function startServerTimer(game, duration) {
         WHERE game = ?
       `).run(game);
 
+      // Recalculate ranks and update live scoreboard for dashboard
+      updateRanks(game);
+      broadcastScoreboard();
+
       if (ioInstance) {
         ioInstance.to(`game_${game}`).emit('timer_tick', { game, remaining: 0, status: 'TIME_UP' });
         ioInstance.to(`game_${game}`).emit('time_up', { game });
+        ioInstance.emit('brain_round_finished', {
+          game,
+          status: 'TIME_UP',
+          message: 'Round time expired! Points calculated and dashboard updated.'
+        });
       }
       broadcastSessionState(game);
     } else {

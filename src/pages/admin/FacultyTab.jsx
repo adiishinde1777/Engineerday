@@ -400,14 +400,23 @@ export default function FacultyTab() {
               </div>
 
               <div>
-                <label className="text-slate-300 font-mono">Symposium Position / Committee Role</label>
-                <input
-                  type="text"
-                  value={formData.position_role}
-                  onChange={(e) => setFormData({ ...formData, position_role: e.target.value })}
-                  placeholder="e.g. Head of Department (HOD) & Patron / Faculty Convener"
-                  className="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono"
-                />
+                <label className="text-slate-300 font-mono">Role Tag</label>
+                <select
+                  value={formData.is_hod === 1 ? 'hod' : (formData.position_role?.toLowerCase().includes('coordinator') ? 'coordinator' : 'custom')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'hod') {
+                      setFormData(prev => ({ ...prev, is_hod: 1, position_role: 'Head of Department (HoD)' }));
+                    } else if (val === 'coordinator') {
+                      setFormData(prev => ({ ...prev, is_hod: 0, position_role: 'Faculty Coordinator' }));
+                    }
+                  }}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs"
+                >
+                  <option value="coordinator">Faculty Coordinator</option>
+                  <option value="hod">Head of Department (HoD)</option>
+                  <option value="custom">Custom Tag: {formData.position_role}</option>
+                </select>
               </div>
 
               {/* Profile Picture Upload & Preview */}

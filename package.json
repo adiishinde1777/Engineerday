@@ -4,13 +4,14 @@
   "description": "Engineers' Day 2026 Full-Stack Event & Live Game Management Website",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -s first -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"node --watch server/index.js\" \"vite\"",
+    "dev": "concurrently -k -s first -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"node --watch --watch-path=server server/index.js\" \"vite\"",
     "server": "node server/index.js",
     "client": "vite",
     "build": "vite build",
     "start": "node server/index.js",
     "tunnel": "npx localtunnel --port 5000",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:setup": "node server/mysql-setup.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -21,6 +22,7 @@
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.45.0",
     "multer": "^2.3.0",
+    "mysql2": "^3.24.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "socket.io": "^4.8.3",
