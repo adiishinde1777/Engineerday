@@ -45,7 +45,7 @@ export default function AdminLayout({ setCurrentPage, eventSettings, onSettingsU
 
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'registrations', label: 'Registrations', icon: Users },
+    { id: 'registrations', label: 'All Users & Teams', icon: Users },
     { id: 'teams', label: 'Teams Roster', icon: ShieldCheck },
     { id: 'brain', label: 'Engineer’s Brain', icon: Brain, badge: 'LIVE' },
     { id: 'pictionary', label: 'Engineering Pictionary', icon: Palette, badge: 'LIVE' },

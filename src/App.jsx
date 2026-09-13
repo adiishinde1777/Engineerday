@@ -18,10 +18,40 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import { api } from './utils/api';
 
+function getPageFromLocation() {
+  if (typeof window === 'undefined') return 'home';
+  const hash = window.location.hash.replace(/^#\/?/, '').trim();
+  if (hash) return hash;
+  const path = window.location.pathname.replace(/^\//, '').trim();
+  if (path && path !== 'index.html' && path !== '') return path;
+  return 'home';
+}
+
 function MainApp() {
-  const [currentPage, setCurrentPage] = useState('home');
+  const [currentPage, setCurrentPageState] = useState(() => getPageFromLocation());
   const [eventSettings, setEventSettings] = useState(null);
   const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Synchronized navigation function that keeps URL hash and state in sync
+  const setCurrentPage = (page) => {
+    setCurrentPageState(page);
+    if (typeof window !== 'undefined') {
+      if (window.location.hash !== `#${page}`) {
+        window.location.hash = page;
+      }
+    }
+  };
+
+  // Listen to browser forward/back and direct hash modifications
+  useEffect(() => {
+    const handleHashChange = () => {
+      const newPage = getPageFromLocation();
+      setCurrentPageState(newPage);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const fetchSettings = () => {
     api.getSettings()
@@ -42,12 +72,24 @@ function MainApp() {
     return <ProjectorScoreboard onExit={() => setCurrentPage('live-dashboard')} />;
   }
 
-  // Handle Admin Dashboard (Standalone layout)
+  // Handle Admin Dashboard (Standalone layout with strict authentication guard)
   if (currentPage === 'admin') {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('engineers_day_admin_token') : null;
-    if (!isAuthenticated && !token) {
+    // 1. While auth status is verifying, show a high-tech loader
+    if (authLoading) {
+      return (
+        <div className="min-h-screen bg-[#070b14] text-cyan-400 flex flex-col items-center justify-center space-y-4 font-mono">
+          <div className="w-12 h-12 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs uppercase tracking-widest text-slate-400">Verifying Admin Authorization...</p>
+        </div>
+      );
+    }
+
+    // 2. Strict protection: If unauthenticated (e.g. new user opens the link), CANNOT see dashboard
+    if (!isAuthenticated) {
       return <AdminLoginPage setCurrentPage={setCurrentPage} />;
     }
+
+    // 3. Authenticated admin: show full dashboard
     return (
       <AdminLayout
         setCurrentPage={setCurrentPage}
@@ -55,6 +97,20 @@ function MainApp() {
         onSettingsUpdated={setEventSettings}
       />
     );
+  }
+
+  // Handle Admin Login page: if already authenticated, take directly to dashboard
+  if (currentPage === 'admin-login') {
+    if (!authLoading && isAuthenticated) {
+      return (
+        <AdminLayout
+          setCurrentPage={setCurrentPage}
+          eventSettings={eventSettings}
+          onSettingsUpdated={setEventSettings}
+        />
+      );
+    }
+    return <AdminLoginPage setCurrentPage={setCurrentPage} />;
   }
 
   return (
@@ -89,9 +145,6 @@ function MainApp() {
             setCurrentPage={setCurrentPage}
             onSettingsUpdated={setEventSettings}
           />
-        )}
-        {currentPage === 'admin-login' && (
-          <AdminLoginPage setCurrentPage={setCurrentPage} />
         )}
       </main>
 

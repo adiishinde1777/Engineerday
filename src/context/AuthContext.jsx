@@ -19,29 +19,36 @@ export function AuthProvider({ children }) {
     if (token) {
       api.getMe()
         .then((res) => {
-          if (res.success) {
+          if (res.success && res.admin) {
             setAdmin(res.admin);
             localStorage.setItem('engineers_day_admin_user', JSON.stringify(res.admin));
           } else {
             logout();
           }
         })
-        .catch(() => {
-          // If token expired or network fails but we have token, don't immediately clear unless 401
-          // but if getMe fails we handle gracefully
+        .catch((err) => {
+          // If unauthorized or token invalid, clear session immediately
+          const msg = (err?.message || '').toLowerCase();
+          if (msg.includes('unauthorized') || msg.includes('401') || msg.includes('invalid') || msg.includes('expired')) {
+            logout();
+          }
         })
         .finally(() => setLoading(false));
     } else {
+      // No token present
+      setAdmin(null);
+      localStorage.removeItem('engineers_day_admin_user');
       setLoading(false);
     }
   }, []);
 
   const login = async (username, password) => {
     const res = await api.login(username, password);
-    if (res.success && res.token) {
+    if (res.success && res.token && res.admin) {
       setAuthToken(res.token);
       localStorage.setItem('engineers_day_admin_user', JSON.stringify(res.admin));
       setAdmin(res.admin);
+      setLoading(false);
       return res;
     }
     throw new Error(res.message || 'Login failed');
@@ -53,8 +60,8 @@ export function AuthProvider({ children }) {
     setAdmin(null);
   };
 
-  const hasValidToken = !!getAuthToken();
-  const isAuthenticated = hasValidToken;
+  const hasValidToken = Boolean(getAuthToken());
+  const isAuthenticated = Boolean(admin && hasValidToken);
 
   return (
     <AuthContext.Provider value={{ admin, loading, login, logout, isAuthenticated }}>

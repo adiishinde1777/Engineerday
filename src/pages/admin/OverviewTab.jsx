@@ -54,13 +54,13 @@ export default function OverviewTab({ setActiveTab, setCurrentPage }) {
   }, []);
 
   const cards = [
-    { label: 'TOTAL TEAMS', val: stats.totalTeams, sub: 'All Registered Squads', icon: Users, color: 'text-cyan-400', border: 'border-cyan-500/30' },
-    { label: 'TOTAL PLAYERS', val: stats.totalPlayers, sub: '3 Members Per Team', icon: Users, color: 'text-sky-400', border: 'border-sky-500/30' },
-    { label: 'BRAIN TEAMS', val: stats.brainTeams, sub: "Engineer's Brain", icon: Brain, color: 'text-cyan-400', border: 'border-cyan-500/30' },
-    { label: 'PICTIONARY TEAMS', val: stats.pictionaryTeams, sub: 'Engineering Pictionary', icon: Palette, color: 'text-indigo-400', border: 'border-indigo-500/30' },
-    { label: 'VERIFIED TEAMS', val: stats.verifiedTeams, sub: 'Approved Roster', icon: CheckCircle2, color: 'text-emerald-400', border: 'border-emerald-500/30' },
-    { label: 'PENDING TEAMS', val: stats.pendingTeams, sub: 'Awaiting Verification', icon: Clock, color: 'text-amber-400', border: 'border-amber-500/30' },
-    { label: 'TOTAL FACULTY', val: stats.totalFaculty, sub: 'Department Mentors', icon: GraduationCap, color: 'text-purple-400', border: 'border-purple-500/30' },
+    { label: 'TOTAL TEAMS', val: stats.totalTeams, sub: 'All Registered Squads', icon: Users, color: 'text-cyan-400', border: 'border-cyan-500/30', tab: 'registrations' },
+    { label: 'TOTAL PLAYERS', val: stats.totalPlayers, sub: 'View All Individual Users', icon: Users, color: 'text-sky-400', border: 'border-sky-500/30', tab: 'registrations' },
+    { label: 'BRAIN TEAMS', val: stats.brainTeams, sub: "Engineer's Brain", icon: Brain, color: 'text-cyan-400', border: 'border-cyan-500/30', tab: 'brain' },
+    { label: 'PICTIONARY TEAMS', val: stats.pictionaryTeams, sub: 'Engineering Pictionary', icon: Palette, color: 'text-indigo-400', border: 'border-indigo-500/30', tab: 'pictionary' },
+    { label: 'VERIFIED TEAMS', val: stats.verifiedTeams, sub: 'Approved Roster', icon: CheckCircle2, color: 'text-emerald-400', border: 'border-emerald-500/30', tab: 'registrations' },
+    { label: 'PENDING TEAMS', val: stats.pendingTeams, sub: 'Awaiting Verification', icon: Clock, color: 'text-amber-400', border: 'border-amber-500/30', tab: 'registrations' },
+    { label: 'TOTAL FACULTY', val: stats.totalFaculty, sub: 'Department Mentors', icon: GraduationCap, color: 'text-purple-400', border: 'border-purple-500/30', tab: 'faculty' },
   ];
 
   const [eventSettings, setEventSettings] = useState(null);
@@ -199,7 +199,14 @@ export default function OverviewTab({ setActiveTab, setCurrentPage }) {
         {cards.map((c, idx) => {
           const Icon = c.icon;
           return (
-            <div key={idx} className={`glass-card p-5 rounded-2xl border ${c.border} bg-slate-900/80 relative overflow-hidden`}>
+            <div 
+              key={idx} 
+              onClick={() => c.tab && setActiveTab(c.tab)}
+              className={`glass-card p-5 rounded-2xl border ${c.border} bg-slate-900/80 relative overflow-hidden transition-all ${
+                c.tab ? 'cursor-pointer hover:border-cyan-400 hover:scale-[1.02] hover:bg-slate-850/90' : ''
+              }`}
+              title={c.tab ? `Click to view ${c.label}` : ''}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold">
                   {c.label}
@@ -209,8 +216,9 @@ export default function OverviewTab({ setActiveTab, setCurrentPage }) {
               <div className="text-3xl font-black text-white font-mono mt-2 tracking-tight">
                 {c.val}
               </div>
-              <div className="text-[11px] text-slate-400 font-sans mt-1">
-                {c.sub}
+              <div className="text-[11px] text-slate-400 font-sans mt-1 flex items-center justify-between">
+                <span>{c.sub}</span>
+                {c.tab && <span className="text-[10px] font-mono text-cyan-400">View &rarr;</span>}
               </div>
             </div>
           );

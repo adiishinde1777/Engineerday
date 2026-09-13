@@ -18,8 +18,13 @@ import {
   Check,
   Zap,
   Eye,
+  EyeOff,
   Save,
-  Link2
+  Link2,
+  Crown,
+  Shield,
+  Phone,
+  UserCheck
 } from 'lucide-react';
 import { api, getAuthToken } from '../../utils/api';
 
@@ -30,6 +35,92 @@ export default function RegistrationsTab() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [viewMode, setViewMode] = useState('users'); // 'users' (Individual Participants) | 'teams' (Squads)
+
+  // Compute flattened individual users list across all squads
+  const allUsersList = React.useMemo(() => {
+    const list = [];
+    (teams || []).forEach((t) => {
+      // Captain / Member 1
+      const captName = t.member1 || t.captain;
+      if (captName) {
+        list.push({
+          id: `${t.id}-m1`,
+          name: captName,
+          role: 'Captain (Member 1)',
+          isCaptain: true,
+          team_id: t.id,
+          team_name: t.team_name,
+          game: t.game,
+          contact: t.contact,
+          registration_status: t.registration_status,
+          score: t.score,
+          rank: t.rank,
+          status: t.status,
+          is_seed: t.is_seed,
+          created_at: t.created_at,
+          rawTeam: t
+        });
+      }
+      // Member 2
+      if (t.member2) {
+        list.push({
+          id: `${t.id}-m2`,
+          name: t.member2,
+          role: 'Squad Member 2',
+          isCaptain: false,
+          team_id: t.id,
+          team_name: t.team_name,
+          game: t.game,
+          contact: t.contact,
+          registration_status: t.registration_status,
+          score: t.score,
+          rank: t.rank,
+          status: t.status,
+          is_seed: t.is_seed,
+          created_at: t.created_at,
+          rawTeam: t
+        });
+      }
+      // Member 3
+      if (t.member3) {
+        list.push({
+          id: `${t.id}-m3`,
+          name: t.member3,
+          role: 'Squad Member 3',
+          isCaptain: false,
+          team_id: t.id,
+          team_name: t.team_name,
+          game: t.game,
+          contact: t.contact,
+          registration_status: t.registration_status,
+          score: t.score,
+          rank: t.rank,
+          status: t.status,
+          is_seed: t.is_seed,
+          created_at: t.created_at,
+          rawTeam: t
+        });
+      }
+    });
+    return list;
+  }, [teams]);
+
+  // Filter individual users
+  const filteredUsers = React.useMemo(() => {
+    return allUsersList.filter(u => {
+      if (filterGame !== 'all' && u.game !== filterGame && u.game !== 'both') return false;
+      if (filterStatus !== 'all' && u.registration_status !== filterStatus) return false;
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        return u.name.toLowerCase().includes(q) ||
+               u.team_name.toLowerCase().includes(q) ||
+               (u.contact && u.contact.toLowerCase().includes(q)) ||
+               u.role.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [allUsersList, filterGame, filterStatus, search]);
 
   // Manual Add Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -414,10 +505,10 @@ export default function RegistrationsTab() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white font-heading">
-            REGISTRATIONS & TEAMS DESK
+            ALL REGISTERED USERS & TEAMS
           </h2>
           <p className="text-xs font-mono text-slate-400 mt-0.5">
-            Manage registrations, verify team rosters, and import Google Form responses.
+            Admin Directory: View all individual users, captains, squad members, and verification records.
           </p>
         </div>
 
@@ -436,7 +527,7 @@ export default function RegistrationsTab() {
               setShowImportModal(true);
               setImportTab('upload');
             }}
-            className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/25"
+            className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/25 cursor-pointer"
             title="Import responses directly from your Google Form"
           >
             <FileSpreadsheet className="w-4 h-4 text-slate-950" />
@@ -459,7 +550,7 @@ export default function RegistrationsTab() {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 flex items-center gap-1.5 shadow-md shadow-cyan-500/20 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Add Team
@@ -467,7 +558,7 @@ export default function RegistrationsTab() {
 
           <button
             onClick={handleClearSeed}
-            className="px-3 py-2 rounded-xl text-xs font-mono text-rose-400 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30"
+            className="px-3 py-2 rounded-xl text-xs font-mono text-rose-400 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 cursor-pointer"
             title="Clear all demo seed teams"
           >
             Clear Demo Data
@@ -475,135 +566,331 @@ export default function RegistrationsTab() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="glass-card p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Game filter */}
-          <select
-            value={filterGame}
-            onChange={(e) => setFilterGame(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono focus:outline-none"
-          >
-            <option value="all">All Games</option>
-            <option value="brain">Engineer's Brain</option>
-            <option value="pictionary">Engineering Pictionary</option>
-          </select>
-
-          {/* Verification status filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono focus:outline-none"
-          >
-            <option value="all">All Statuses</option>
-            <option value="VERIFIED">Verified Only</option>
-            <option value="PENDING">Pending Only</option>
-          </select>
+      {/* Quick Summary Stat Badges */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono">
+        <div className="p-3 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 flex flex-col justify-between">
+          <span className="text-slate-400 text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <Users className="w-3 h-3 text-cyan-400" />
+            Total Users
+          </span>
+          <span className="text-xl font-black text-cyan-300 font-heading mt-1">
+            {allUsersList.length}
+          </span>
+          <span className="text-[10px] text-slate-500">All Individual Students</span>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-72">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search team or member..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none font-mono text-xs"
-            />
-          </div>
-          <button
-            onClick={fetchTeams}
-            className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+        <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex flex-col justify-between">
+          <span className="text-slate-400 text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <Shield className="w-3 h-3 text-indigo-400" />
+            Total Squads
+          </span>
+          <span className="text-xl font-black text-indigo-300 font-heading mt-1">
+            {teams.length}
+          </span>
+          <span className="text-[10px] text-slate-500">3 Members per Squad</span>
+        </div>
+
+        <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col justify-between">
+          <span className="text-slate-400 text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            Verified Users
+          </span>
+          <span className="text-xl font-black text-emerald-300 font-heading mt-1">
+            {allUsersList.filter(u => u.registration_status === 'VERIFIED').length}
+          </span>
+          <span className="text-[10px] text-slate-500">Ready to Compete</span>
+        </div>
+
+        <div className="p-3 rounded-2xl bg-sky-950/40 border border-sky-500/30 flex flex-col justify-between">
+          <span className="text-slate-400 text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <Crown className="w-3 h-3 text-sky-400" />
+            Brain Arena
+          </span>
+          <span className="text-xl font-black text-sky-300 font-heading mt-1">
+            {allUsersList.filter(u => u.game === 'brain' || u.game === 'both').length}
+          </span>
+          <span className="text-[10px] text-slate-500">Quiz Participants</span>
+        </div>
+
+        <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/30 flex flex-col justify-between col-span-2 sm:col-span-1">
+          <span className="text-slate-400 text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <Users className="w-3 h-3 text-purple-400" />
+            Pictionary
+          </span>
+          <span className="text-xl font-black text-purple-300 font-heading mt-1">
+            {allUsersList.filter(u => u.game === 'pictionary' || u.game === 'both').length}
+          </span>
+          <span className="text-[10px] text-slate-500">Drawing Arena Players</span>
         </div>
       </div>
 
-      {/* Registrations Table */}
-      <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden bg-slate-900/90">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-mono uppercase text-[11px]">
-                <th className="py-3 px-4">TEAM NAME</th>
-                <th className="py-3 px-4">GAME</th>
-                <th className="py-3 px-4">MEMBERS (3 SQUAD)</th>
-                <th className="py-3 px-4">CONTACT</th>
-                <th className="py-3 px-4 text-center">VERIFICATION</th>
-                <th className="py-3 px-4 text-right">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-sans">
-              {teams.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-500 font-mono">
-                    NO REGISTRATIONS FOUND
-                  </td>
+      {/* View Mode Toggle & Filter Bar */}
+      <div className="glass-card p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          {/* View Mode Toggle */}
+          <div className="inline-flex rounded-xl p-1 bg-slate-950 border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setViewMode('users')}
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                viewMode === 'users'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>All Users Roster ({allUsersList.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('teams')}
+              className={`px-3.5 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                viewMode === 'teams'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Squad / Team View ({teams.length})</span>
+            </button>
+          </div>
+
+          <div className="text-xs font-mono text-slate-400">
+            Showing <strong className="text-cyan-400">{viewMode === 'users' ? filteredUsers.length : teams.length}</strong> {viewMode === 'users' ? 'users' : 'squads'}
+          </div>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Game filter */}
+            <select
+              value={filterGame}
+              onChange={(e) => setFilterGame(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono focus:outline-none"
+            >
+              <option value="all">All Games</option>
+              <option value="brain">Engineer's Brain</option>
+              <option value="pictionary">Engineering Pictionary</option>
+            </select>
+
+            {/* Verification status filter */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono focus:outline-none"
+            >
+              <option value="all">All Statuses</option>
+              <option value="VERIFIED">Verified Only</option>
+              <option value="PENDING">Pending Only</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-80">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder={viewMode === 'users' ? "Search user name, phone, team..." : "Search squad or captain..."}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none font-mono text-xs"
+              />
+            </div>
+            <button
+              onClick={fetchTeams}
+              className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              title="Refresh roster"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* TABLE RENDER: Users View OR Teams View */}
+      {viewMode === 'users' ? (
+        /* INDIVIDUAL ALL USERS TABLE */
+        <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden bg-slate-900/90">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-mono uppercase text-[11px]">
+                  <th className="py-3 px-4">#</th>
+                  <th className="py-3 px-4">USER / PARTICIPANT</th>
+                  <th className="py-3 px-4">ROLE</th>
+                  <th className="py-3 px-4">SQUAD / TEAM</th>
+                  <th className="py-3 px-4">GAME</th>
+                  <th className="py-3 px-4">CONTACT</th>
+                  <th className="py-3 px-4 text-center">STATUS</th>
+                  <th className="py-3 px-4 text-right">ACTIONS</th>
                 </tr>
-              ) : (
-                teams.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-850/50 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-white font-heading">
-                      <div className="flex items-center gap-2">
-                        <span>{t.team_name}</span>
-                        {t.is_seed === 1 && (
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                            DEMO
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
-                        t.game === 'brain' ? 'bg-cyan-950 text-cyan-400' : 'bg-indigo-950 text-indigo-400'
-                      }`}>
-                        {t.game}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-slate-300 font-mono text-[11px]">
-                      <div>1. <strong className="text-white">{t.member1} (Capt)</strong></div>
-                      <div>2. {t.member2}</div>
-                      <div>3. {t.member3}</div>
-                    </td>
-
-                    <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                      {t.contact}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => handleToggleStatus(t)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase transition-all ${
-                          t.registration_status === 'VERIFIED'
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900'
-                            : 'bg-amber-950 text-amber-300 border border-amber-500/40 hover:bg-amber-900'
-                        }`}
-                        title="Click to toggle status"
-                      >
-                        {t.registration_status}
-                      </button>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => handleDeleteTeam(t.id)}
-                        className="p-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900 border border-rose-500/30"
-                        title="Delete team"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-sans">
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="py-12 text-center text-slate-500 font-mono">
+                      NO REGISTERED USERS FOUND
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredUsers.map((u, idx) => (
+                    <tr key={u.id} className="hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                        {idx + 1}
+                      </td>
+
+                      <td className="py-3.5 px-4 font-bold text-white font-heading">
+                        <div className="flex items-center gap-2">
+                          <span>{u.name}</span>
+                          {u.isCaptain && (
+                            <span className="flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                              <Crown className="w-2.5 h-2.5 text-amber-400" />
+                              CAPTAIN
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-300 font-mono text-[11px]">
+                        <span className="text-slate-400">{u.role}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-cyan-300 font-semibold text-[11px]">
+                        {u.team_name}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
+                          u.game === 'brain' ? 'bg-cyan-950 text-cyan-400' : 'bg-indigo-950 text-indigo-400'
+                        }`}>
+                          {u.game}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-slate-300 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="w-3 h-3 text-slate-500" />
+                          <span>{u.contact}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => handleToggleStatus(u.rawTeam)}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase transition-all cursor-pointer ${
+                            u.registration_status === 'VERIFIED'
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900'
+                              : 'bg-amber-950 text-amber-300 border border-amber-500/40 hover:bg-amber-900'
+                          }`}
+                          title="Click to toggle verification status for squad"
+                        >
+                          {u.registration_status}
+                        </button>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => handleDeleteTeam(u.team_id)}
+                          className="p-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900 border border-rose-500/30 cursor-pointer"
+                          title="Delete squad registration"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* SQUADS GROUPED TABLE */
+        <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden bg-slate-900/90">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-mono uppercase text-[11px]">
+                  <th className="py-3 px-4">TEAM NAME</th>
+                  <th className="py-3 px-4">GAME</th>
+                  <th className="py-3 px-4">MEMBERS (3 SQUAD)</th>
+                  <th className="py-3 px-4">CONTACT</th>
+                  <th className="py-3 px-4 text-center">VERIFICATION</th>
+                  <th className="py-3 px-4 text-right">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-sans">
+                {teams.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-12 text-center text-slate-500 font-mono">
+                      NO REGISTRATIONS FOUND
+                    </td>
+                  </tr>
+                ) : (
+                  teams.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-850/50 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-white font-heading">
+                        <div className="flex items-center gap-2">
+                          <span>{t.team_name}</span>
+                          {t.is_seed === 1 && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                              DEMO
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
+                          t.game === 'brain' ? 'bg-cyan-950 text-cyan-400' : 'bg-indigo-950 text-indigo-400'
+                        }`}>
+                          {t.game}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-slate-300 font-mono text-[11px]">
+                        <div>1. <strong className="text-white">{t.member1} (Capt)</strong></div>
+                        <div>2. {t.member2}</div>
+                        <div>3. {t.member3}</div>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                        {t.contact}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => handleToggleStatus(t)}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase transition-all cursor-pointer ${
+                            t.registration_status === 'VERIFIED'
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900'
+                              : 'bg-amber-950 text-amber-300 border border-amber-500/40 hover:bg-amber-900'
+                          }`}
+                          title="Click to toggle status"
+                        >
+                          {t.registration_status}
+                        </button>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => handleDeleteTeam(t.id)}
+                          className="p-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900 border border-rose-500/30 cursor-pointer"
+                          title="Delete team"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Manual Add Modal */}
       {showAddModal && (
