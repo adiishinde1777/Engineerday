@@ -31,7 +31,7 @@ export default function Footer({ setCurrentPage, eventSettings }) {
               "Think. Create. Solve. Engineer the Future."
             </p>
             <p className="text-slate-400 text-sm leading-relaxed max-w-md">
-              Department of Electronics Engineering (VLSI Design & Technology). Celebrating Bharat Ratna Sir M. Visvesvaraya’s birth anniversary with live technical competitions.
+              Department of Electronics Engineering (VLSI Design & Technology). Organized in honor of Dr. Shrikant Honade with live technical competitions.
             </p>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono text-cyan-300">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>

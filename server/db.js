@@ -76,6 +76,10 @@ export function initDB() {
     db.exec('ALTER TABLE faculty ADD COLUMN position_role TEXT;');
   } catch {}
 
+  try {
+    db.exec('ALTER TABLE faculty ADD COLUMN is_hod INTEGER DEFAULT 0;');
+  } catch {}
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS questions (
       id TEXT PRIMARY KEY,
@@ -146,8 +150,10 @@ function seedDefaultData() {
     { key: 'eventDate', value: '2026-09-15T09:00:00' },
     { key: 'eventSubtitle', value: 'Think. Create. Solve. Engineer the Future.' },
     { key: 'departmentName', value: 'Department of Electronics Engineering (VLSI Design and Technology)' },
-    { key: 'eventDescription', value: 'Organized by the Department of Electronics Engineering (VLSI Design and Technology). Celebrating Bharat Ratna Sir M. Visvesvaraya with premier technical showdowns: Engineer’s Brain and Engineering Pictionary.' },
+    { key: 'eventDescription', value: 'Organized by the Department of Electronics Engineering (VLSI Design and Technology) in honor of Dr. Shrikant Honade. Join the premier departmental showdown: Engineer’s Brain and Engineering Pictionary.' },
     { key: 'googleFormUrl', value: 'https://forms.gle/Wz7TfiFHX1hNsakb8' },
+    { key: 'google_form_api_key', value: 'AIzaSyCaD14Bcn-MCGkdCUDWnfWzddq8GGUZ5_w' },
+    { key: 'google_cloud_api_key', value: 'AIzaSyCaD14Bcn-MCGkdCUDWnfWzddq8GGUZ5_w' },
     { key: 'eventStatus', value: 'AUTO' }, // AUTO, UPCOMING, LIVE, COMPLETED
     { key: 'footerText', value: 'Engineers’ Day 2026 | Designed & Developed by Aditya Shinde' },
     { key: 'developerName', value: 'Aditya Shinde' },
@@ -183,10 +189,11 @@ function seedDefaultData() {
   const seedFaculty = [
     {
       id: 'fac-1',
-      name: 'Dr. Shrikant Honde',
+      name: 'Dr. Shrikant Honade',
       designation: 'Head of Department & Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Head of Department (HOD) & Patron',
+      is_hod: 1,
       profile_image: '',
       description: 'Head of Department leading VLSI Design, Semiconductor Systems, and symposium mentorship.'
     },
@@ -196,6 +203,7 @@ function seedDefaultData() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Faculty Convener',
+      is_hod: 0,
       profile_image: '',
       description: 'Specializes in Digital Electronics, ASIC design flows, and symposium coordination.'
     },
@@ -205,6 +213,7 @@ function seedDefaultData() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Faculty Coordinator',
+      is_hod: 0,
       profile_image: '',
       description: 'Expertise in Semiconductor Devices, Analog VLSI, and event management.'
     },
@@ -214,6 +223,7 @@ function seedDefaultData() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Technical Jury & Evaluator',
+      is_hod: 0,
       profile_image: '',
       description: 'Focuses on Microcontroller Architectures, Embedded Systems, and quiz evaluation.'
     },
@@ -223,6 +233,7 @@ function seedDefaultData() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Event Coordinator',
+      is_hod: 0,
       profile_image: '',
       description: 'Specializes in FPGA Synthesis, Hardware Verification, and student mentoring.'
     },
@@ -232,6 +243,7 @@ function seedDefaultData() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Faculty Coordinator',
+      is_hod: 0,
       profile_image: '',
       description: 'Focuses on Electronic Circuit Analysis, Signal Processing, and stage orchestration.'
     },
@@ -241,21 +253,34 @@ function seedDefaultData() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Technical Advisor',
+      is_hod: 0,
       profile_image: '',
       description: 'Expertise in VLSI Layout Design, CMOS Technology, and technical competitions.'
     }
   ];
 
-  // Refresh faculty to ensure exact requested members
-  const checkHOD = db.prepare("SELECT count(*) as count FROM faculty WHERE name LIKE '%Shrikant Honde%'").get();
-  if (!checkHOD || checkHOD.count === 0) {
-    db.prepare('DELETE FROM faculty').run();
+  // Refresh faculty or ensure HOD designation is assigned
+  const checkFaculty = db.prepare("SELECT count(*) as count FROM faculty").get();
+  if (!checkFaculty || checkFaculty.count === 0) {
     const insertFaculty = db.prepare(`
-      INSERT INTO faculty (id, name, designation, department, profile_image, description, position_role, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO faculty (id, name, designation, department, profile_image, description, position_role, is_hod, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const f of seedFaculty) {
-      insertFaculty.run(f.id, f.name, f.designation, f.department, f.profile_image, f.description, f.position_role, new Date().toISOString());
+      insertFaculty.run(f.id, f.name, f.designation, f.department, f.profile_image, f.description, f.position_role, f.is_hod || 0, new Date().toISOString());
+    }
+  } else {
+    // Ensure at least one member is marked as HOD
+    const checkHODMarked = db.prepare("SELECT count(*) as count FROM faculty WHERE is_hod = 1").get();
+    if (!checkHODMarked || checkHODMarked.count === 0) {
+      db.prepare(`
+        UPDATE faculty SET is_hod = 1
+        WHERE id = (
+          SELECT id FROM faculty 
+          WHERE position_role LIKE '%HOD%' OR designation LIKE '%Head%' OR name LIKE '%Honde%' OR name LIKE '%Honade%' 
+          ORDER BY created_at ASC LIMIT 1
+        )
+      `).run();
     }
   }
 

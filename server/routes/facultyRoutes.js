@@ -27,21 +27,26 @@ const router = express.Router();
 
 // GET all faculty
 router.get('/', (req, res) => {
-  const faculty = db.prepare('SELECT * FROM faculty ORDER BY created_at ASC').all();
+  const faculty = db.prepare('SELECT * FROM faculty ORDER BY is_hod DESC, created_at ASC').all();
   return res.json({ success: true, count: faculty.length, faculty });
 });
 
 // POST add faculty (Admin)
 router.post('/', requireAdmin, (req, res) => {
-  const { name, designation, department, profile_image, description, position_role } = req.body;
+  const { name, designation, department, profile_image, description, position_role, is_hod } = req.body;
   if (!name || !designation || !department) {
     return res.status(400).json({ success: false, message: 'Name, designation/position, and department are required' });
   }
 
+  const isHodVal = (is_hod === 1 || is_hod === true || (position_role && position_role.toLowerCase().includes('hod'))) ? 1 : 0;
+  if (isHodVal === 1) {
+    db.prepare('UPDATE faculty SET is_hod = 0').run();
+  }
+
   const id = `fac-${Date.now()}`;
   db.prepare(`
-    INSERT INTO faculty (id, name, designation, department, profile_image, description, position_role, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO faculty (id, name, designation, department, profile_image, description, position_role, is_hod, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     name.trim(),
@@ -49,7 +54,8 @@ router.post('/', requireAdmin, (req, res) => {
     department.trim(),
     profile_image || '',
     description || '',
-    position_role || 'Faculty Member',
+    position_role || (isHodVal ? 'Head of Department (HOD) & Patron' : 'Faculty Member'),
+    isHodVal,
     new Date().toISOString()
   );
 
@@ -65,15 +71,41 @@ router.post('/upload', requireAdmin, upload.single('image'), (req, res) => {
   return res.json({ success: true, imageUrl });
 });
 
+// POST set specific faculty as HOD (Admin)
+router.post('/:id/set-hod', requireAdmin, (req, res) => {
+  const existing = db.prepare('SELECT id, name FROM faculty WHERE id = ?').get(req.params.id);
+  if (!existing) {
+    return res.status(404).json({ success: false, message: 'Faculty member not found' });
+  }
+
+  db.prepare('UPDATE faculty SET is_hod = 0').run();
+  db.prepare(`
+    UPDATE faculty 
+    SET is_hod = 1, 
+        position_role = 'Head of Department (HOD) & Patron' 
+    WHERE id = ?
+  `).run(req.params.id);
+
+  return res.json({ success: true, message: `${existing.name} is now designated as Head of Department (HOD)` });
+});
+
 // PUT update faculty (Admin)
 router.put('/:id', requireAdmin, (req, res) => {
-  const { name, designation, department, profile_image, description, position_role } = req.body;
-  const existing = db.prepare('SELECT id FROM faculty WHERE id = ?').get(req.params.id);
+  const { name, designation, department, profile_image, description, position_role, is_hod } = req.body;
+  const existing = db.prepare('SELECT * FROM faculty WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ success: false, message: 'Faculty member not found' });
   }
 
   const newImage = profile_image !== undefined ? profile_image : existing.profile_image;
+  let newIsHod = existing.is_hod || 0;
+
+  if (is_hod !== undefined) {
+    newIsHod = (is_hod === 1 || is_hod === true) ? 1 : 0;
+    if (newIsHod === 1) {
+      db.prepare('UPDATE faculty SET is_hod = 0 WHERE id != ?').run(req.params.id);
+    }
+  }
 
   db.prepare(`
     UPDATE faculty SET
@@ -82,9 +114,10 @@ router.put('/:id', requireAdmin, (req, res) => {
       department = coalesce(?, department),
       profile_image = ?,
       description = coalesce(?, description),
-      position_role = coalesce(?, position_role)
+      position_role = coalesce(?, position_role),
+      is_hod = ?
     WHERE id = ?
-  `).run(name, designation, department, newImage, description, position_role, req.params.id);
+  `).run(name, designation, department, newImage, description, position_role, newIsHod, req.params.id);
 
   return res.json({ success: true, message: 'Faculty member updated successfully' });
 });

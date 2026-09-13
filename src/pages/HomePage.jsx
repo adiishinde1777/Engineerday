@@ -69,7 +69,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
           </p>
 
           <p className="mt-4 max-w-3xl mx-auto text-sm sm:text-base text-slate-300 leading-relaxed">
-            Organized by the <strong className="text-white">Department of Electronics Engineering (VLSI Design and Technology)</strong> in honor of Bharat Ratna Sir M. Visvesvaraya. Join the premier departmental showdown: Engineer’s Brain and Engineering Pictionary.
+            Organized by the <strong className="text-white">Department of Electronics Engineering (VLSI Design and Technology)</strong> in honor of Dr. Shrikant Honade. Join the premier departmental showdown: Engineer’s Brain and Engineering Pictionary.
           </p>
 
           {/* Action Buttons */}

@@ -16,7 +16,10 @@ import {
   Key,
   Copy,
   Check,
-  Zap
+  Zap,
+  Eye,
+  Save,
+  Link2
 } from 'lucide-react';
 import { api, getAuthToken } from '../../utils/api';
 
@@ -50,12 +53,93 @@ export default function RegistrationsTab() {
   const [importResult, setImportResult] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
 
-  // Google Forms API Modal
+  // Google Forms API & Sheets Config
   const [showGoogleFormModal, setShowGoogleFormModal] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
+
+  const [googleConfig, setGoogleConfig] = useState({
+    google_form_api_key: 'AIzaSyCaD14Bcn-MCGkdCUDWnfWzddq8GGUZ5_w',
+    google_sheet_url: '',
+    google_cloud_api_key: 'AIzaSyCaD14Bcn-MCGkdCUDWnfWzddq8GGUZ5_w',
+    google_form_url: 'https://forms.gle/Wz7TfiFHX1hNsakb8'
+  });
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [saveConfigSuccess, setSaveConfigSuccess] = useState(false);
+  const [syncingGoogleSheet, setSyncingGoogleSheet] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+
+  const fetchGoogleConfig = async () => {
+    try {
+      const res = await api.getGoogleApiConfig();
+      if (res.success && res.config) {
+        setGoogleConfig(prev => ({ ...prev, ...res.config }));
+      }
+    } catch (err) {
+      console.error('Failed to load Google API config:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchGoogleConfig();
+  }, []);
+
+  // Background auto-sync if enabled
+  useEffect(() => {
+    let interval = null;
+    if (autoSyncEnabled && googleConfig.google_sheet_url) {
+      interval = setInterval(() => {
+        handleSyncGoogleSheet(false);
+      }, 10000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoSyncEnabled, googleConfig.google_sheet_url]);
+
+  const handleSaveGoogleConfig = async () => {
+    setSavingConfig(true);
+    try {
+      await api.updateGoogleApiConfig(googleConfig);
+      setSaveConfigSuccess(true);
+      setTimeout(() => setSaveConfigSuccess(false), 3000);
+    } catch (err) {
+      alert(err.message || 'Failed to save Google API settings');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleSyncGoogleSheet = async (previewOnly = false) => {
+    if (!googleConfig.google_sheet_url) {
+      alert('Please enter your Google Sheet URL or Spreadsheet ID');
+      return;
+    }
+    setSyncingGoogleSheet(true);
+    setSyncResult(null);
+    try {
+      const res = await api.syncGoogleSheet({
+        sheetUrl: googleConfig.google_sheet_url,
+        apiKey: googleConfig.google_cloud_api_key,
+        previewOnly
+      });
+      if (res.success) {
+        setSyncResult(res);
+        if (!previewOnly) {
+          fetchTeams();
+        }
+      } else {
+        setSyncResult({ success: false, message: res.message || 'Sync failed' });
+      }
+    } catch (err) {
+      setSyncResult({ success: false, message: err.message || 'Sync failed' });
+    } finally {
+      setSyncingGoogleSheet(false);
+    }
+  };
 
   const fetchTeams = async () => {
     setLoading(true);
@@ -141,14 +225,15 @@ export default function RegistrationsTab() {
     setTestStatus(null);
     try {
       const randomNum = Math.floor(100 + Math.random() * 900);
+      const activeKey = googleConfig.google_form_api_key || 'engineers_day_google_form_key_2026';
       const res = await fetch('/api/teams/webhook', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'engineers_day_google_form_key_2026'
+          'x-api-key': activeKey
         },
         body: JSON.stringify({
-          apiKey: 'engineers_day_google_form_key_2026',
+          apiKey: activeKey,
           'Team Name': `VLSI Innovators #${randomNum}`,
           'Game': 'brain',
           'Captain Name': 'Aditya Shinde',
@@ -678,12 +763,12 @@ export default function RegistrationsTab() {
               </a>
             </div>
 
-            {/* Tabs: File Upload vs Copy Paste */}
-            <div className="flex border-b border-slate-800 gap-2">
+            {/* Tabs: File Upload vs Copy Paste vs Live Google API Sync */}
+            <div className="flex border-b border-slate-800 gap-2 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setImportTab('upload')}
-                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 ${
+                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
                   importTab === 'upload'
                     ? 'border-cyan-400 text-cyan-300'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -695,7 +780,7 @@ export default function RegistrationsTab() {
               <button
                 type="button"
                 onClick={() => setImportTab('paste')}
-                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 ${
+                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
                   importTab === 'paste'
                     ? 'border-cyan-400 text-cyan-300'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -703,6 +788,18 @@ export default function RegistrationsTab() {
               >
                 <Copy className="w-3.5 h-3.5" />
                 Paste Text / Spreadsheet
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportTab('live')}
+                className={`pb-2.5 px-3 text-xs font-mono font-bold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
+                  importTab === 'live'
+                    ? 'border-amber-400 text-amber-300'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5 text-amber-400" />
+                Live Google API Key Sync
               </button>
             </div>
 
@@ -753,6 +850,122 @@ export default function RegistrationsTab() {
                   placeholder="Timestamp,Team Name,Game,Member 1,Member 2,Member 3,Captain,Contact&#10;2026-09-12,VLSI Knights,brain,Aditya,Rohan,Pooja,Aditya,9822011223"
                   className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
                 />
+              </div>
+            )}
+
+            {/* Tab 3: Live Google API Key & Sheet Sync */}
+            {importTab === 'live' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div>
+                    <label className="text-xs font-mono text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+                      Google Sheet URL or Spreadsheet ID
+                    </label>
+                    <input
+                      type="text"
+                      value={googleConfig.google_sheet_url}
+                      onChange={(e) => setGoogleConfig({ ...googleConfig, google_sheet_url: e.target.value })}
+                      placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                      Tip: In your Google Form, click <strong>Responses</strong> ➔ <strong>Link to Sheets</strong> to get this spreadsheet URL.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-mono text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-amber-400" />
+                        Google Cloud API Key
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">Optional if sheet is public</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={googleConfig.google_cloud_api_key}
+                      onChange={(e) => setGoogleConfig({ ...googleConfig, google_cloud_api_key: e.target.value })}
+                      placeholder="e.g. AIzaSy..."
+                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                      Enables secure automated fetching via Google Sheets API v4.
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSyncGoogleSheet(true)}
+                      disabled={syncingGoogleSheet || !googleConfig.google_sheet_url}
+                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 text-xs font-mono font-bold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {syncingGoogleSheet ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>Preview Entries</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSyncGoogleSheet(false)}
+                      disabled={syncingGoogleSheet || !googleConfig.google_sheet_url}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-cyan-400 hover:from-amber-400 hover:to-cyan-300 text-slate-950 text-xs font-mono font-bold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md shadow-amber-500/20"
+                    >
+                      {syncingGoogleSheet ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                      <span>Fetch & Import All Teams</span>
+                    </button>
+
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoSyncEnabled}
+                        onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+                        className="rounded border-slate-700 text-cyan-400 focus:ring-0"
+                      />
+                      <span className={autoSyncEnabled ? "text-emerald-400 font-bold" : "text-slate-400"}>
+                        {autoSyncEnabled ? "● Live Auto-Sync Active (10s)" : "Enable Auto-Sync (10s)"}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {syncResult && (
+                  <div className={`p-4 rounded-2xl border text-xs font-mono space-y-2 ${
+                    syncResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                  }`}>
+                    <div className="flex items-center gap-2 font-bold">
+                      {syncResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertCircle className="w-4 h-4 text-rose-400" />}
+                      <span>{syncResult.message}</span>
+                    </div>
+
+                    {syncResult.previewOnly && syncResult.teams && (
+                      <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-800 mt-2">
+                        <table className="w-full text-left text-xs font-mono">
+                          <thead className="bg-slate-900 text-slate-400 sticky top-0">
+                            <tr>
+                              <th className="p-2">Team Name</th>
+                              <th className="p-2">Game</th>
+                              <th className="p-2">Captain</th>
+                              <th className="p-2">Contact</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 bg-slate-950">
+                            {syncResult.teams.slice(0, 8).map((t, idx) => (
+                              <tr key={idx} className="hover:bg-slate-900/40">
+                                <td className="p-2 font-bold text-white">{t.team_name}</td>
+                                <td className="p-2 text-cyan-400 uppercase">{t.game}</td>
+                                <td className="p-2 text-slate-300">{t.captain}</td>
+                                <td className="p-2 text-slate-400">{t.contact}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -938,25 +1151,40 @@ export default function RegistrationsTab() {
                 </code>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1.5">
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-slate-400 uppercase font-bold">3. Secret API Key</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText('engineers_day_google_form_key_2026');
-                      setCopiedKey(true);
-                      setTimeout(() => setCopiedKey(false), 3000);
-                    }}
-                    className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                  >
-                    {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey ? 'Copied' : 'Copy Key'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveGoogleConfig}
+                      disabled={savingConfig}
+                      className="text-xs font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {saveConfigSuccess ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+                      <span>{saveConfigSuccess ? 'Saved' : 'Save Key'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(googleConfig.google_form_api_key || 'engineers_day_google_form_key_2026');
+                        setCopiedKey(true);
+                        setTimeout(() => setCopiedKey(false), 3000);
+                      }}
+                      className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
                 </div>
-                <code className="text-xs font-mono text-indigo-300 block">
-                  engineers_day_google_form_key_2026
-                </code>
+                <input
+                  type="text"
+                  value={googleConfig.google_form_api_key}
+                  onChange={(e) => setGoogleConfig({ ...googleConfig, google_form_api_key: e.target.value })}
+                  placeholder="engineers_day_google_form_key_2026"
+                  className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-indigo-300 font-mono text-xs focus:outline-none focus:border-indigo-400"
+                />
               </div>
             </div>
 
@@ -969,12 +1197,12 @@ export default function RegistrationsTab() {
                 <button
                   type="button"
                   onClick={() => {
-                    const scriptCode = `function onFormSubmit(e) {\n  var WEBHOOK_URL = "${window.location.origin}/api/teams/webhook";\n  var API_KEY = "engineers_day_google_form_key_2026";\n  \n  var formResponse = e.response;\n  var itemResponses = formResponse.getItemResponses();\n  var payload = { apiKey: API_KEY };\n  \n  for (var i = 0; i < itemResponses.length; i++) {\n    var item = itemResponses[i];\n    payload[item.getItem().getTitle()] = item.getResponse();\n  }\n  \n  var options = {\n    method: "post",\n    contentType: "application/json",\n    headers: { "x-api-key": API_KEY },\n    payload: JSON.stringify(payload),\n    muteHttpExceptions: true\n  };\n  \n  UrlFetchApp.fetch(WEBHOOK_URL, options);\n}`;
+                    const scriptCode = `function onFormSubmit(e) {\n  var WEBHOOK_URL = "${window.location.origin}/api/teams/webhook";\n  var API_KEY = "${googleConfig.google_form_api_key || 'engineers_day_google_form_key_2026'}";\n  \n  var formResponse = e.response;\n  var itemResponses = formResponse.getItemResponses();\n  var payload = { apiKey: API_KEY };\n  \n  for (var i = 0; i < itemResponses.length; i++) {\n    var item = itemResponses[i];\n    payload[item.getItem().getTitle()] = item.getResponse();\n  }\n  \n  var options = {\n    method: "post",\n    contentType: "application/json",\n    headers: { "x-api-key": API_KEY },\n    payload: JSON.stringify(payload),\n    muteHttpExceptions: true\n  };\n  \n  UrlFetchApp.fetch(WEBHOOK_URL, options);\n}`;
                     navigator.clipboard.writeText(scriptCode);
                     setCopiedScript(true);
                     setTimeout(() => setCopiedScript(false), 3000);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 text-xs font-mono flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-xl bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 text-xs font-mono flex items-center gap-1.5 cursor-pointer"
                 >
                   {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedScript ? 'Script Copied!' : 'Copy Apps Script'}</span>
@@ -985,7 +1213,7 @@ export default function RegistrationsTab() {
 {`// Paste into your Google Form -> Script editor:
 function onFormSubmit(e) {
   var WEBHOOK_URL = "${typeof window !== 'undefined' ? window.location.origin : ''}/api/teams/webhook";
-  var API_KEY = "engineers_day_google_form_key_2026";
+  var API_KEY = "${googleConfig.google_form_api_key || 'engineers_day_google_form_key_2026'}";
   
   var formResponse = e.response;
   var itemResponses = formResponse.getItemResponses();
@@ -1008,9 +1236,18 @@ function onFormSubmit(e) {
 }`}
               </pre>
 
-              <p className="text-[11px] text-slate-400 font-mono">
-                💡 <strong>How to set up in 60 seconds:</strong> In your Google Form, click the 3 dots ➔ <strong>Script editor</strong> ➔ Paste the code above ➔ Click <strong>Triggers</strong> (clock icon) ➔ <strong>Add Trigger</strong> ➔ Event source: <em>From form</em> ➔ Event type: <em>On form submit</em>.
-              </p>
+              <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs font-mono space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Notice for Local Computer Testing (localhost):</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-amber-200/90">
+                  Google Apps Script executes on Google Cloud and <strong>cannot reach localhost</strong> directly without a public tunnel (like <code>npm run tunnel</code>).
+                </p>
+                <p className="text-[11px] leading-relaxed text-cyan-300">
+                  ⚡ <strong>Recommended:</strong> In your Google Form, click <strong>Responses ➔ Link to Sheets</strong>. Then paste your Google Sheet URL in the <strong>Live Sync</strong> tab below and turn on <strong>Auto-Sync</strong> — it reads form entries directly into the database on localhost with zero tunnels!
+                </p>
+              </div>
             </div>
 
             {/* Live Test Connection */}
@@ -1046,6 +1283,30 @@ function onFormSubmit(e) {
               )}
             </div>
 
+            {/* Quick Switch to Live Sync */}
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-white font-mono flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+                  Have a Google Sheet link or Google Cloud API Key?
+                </span>
+                <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                  You can fetch and import all Google Form registrations directly without writing code.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGoogleFormModal(false);
+                  setShowImportModal(true);
+                  setImportTab('live');
+                }}
+                className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono text-xs font-bold whitespace-nowrap cursor-pointer shadow-md shadow-cyan-500/20"
+              >
+                Open Live Sync Tab ➔
+              </button>
+            </div>
+
             {/* Modal Footer */}
             <div className="flex justify-end pt-3 border-t border-slate-800">
               <button
@@ -1054,7 +1315,7 @@ function onFormSubmit(e) {
                   setShowGoogleFormModal(false);
                   setTestStatus(null);
                 }}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs"
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs cursor-pointer"
               >
                 Close Settings
               </button>

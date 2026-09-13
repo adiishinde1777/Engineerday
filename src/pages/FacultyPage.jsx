@@ -51,7 +51,34 @@ export default function FacultyPage() {
       .toUpperCase();
   };
 
-  const hod = filteredFaculty.find(f => f.name.toLowerCase().includes('shrikant honde')) || filteredFaculty[0];
+  // Helper to identify Head of Department (HOD) reliably
+  const isFacultyHOD = (f) => {
+    if (!f) return false;
+    return Boolean(
+      f.is_hod === 1 ||
+      f.is_hod === true ||
+      f.position_role?.toLowerCase().includes('hod') ||
+      f.position_role?.toLowerCase().includes('head of department') ||
+      f.designation?.toLowerCase().includes('hod') ||
+      f.designation?.toLowerCase().includes('head of department') ||
+      f.designation?.toLowerCase().includes('head') ||
+      f.name?.toLowerCase().includes('honde') ||
+      f.name?.toLowerCase().includes('honade')
+    );
+  };
+
+  // Find the designated official HOD
+  const designatedHOD = faculty.find(isFacultyHOD);
+
+  // Check if HOD matches active search query
+  const isHODMatchingSearch = designatedHOD && (!searchQuery || (
+    designatedHOD.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    designatedHOD.designation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (designatedHOD.position_role && designatedHOD.position_role.toLowerCase().includes(searchQuery.toLowerCase()))
+  ));
+
+  // Only render featured HOD card if search matches HOD or if no search query is active
+  const hod = isHODMatchingSearch ? designatedHOD : null;
   const otherFaculty = filteredFaculty.filter(f => f.id !== hod?.id);
 
   return (
@@ -234,7 +261,7 @@ export default function FacultyPage() {
             Steering & Technical Jury Committee
           </h3>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-            Under the guidance of HOD Dr. Shrikant Honde and faculty conveners, the symposium ensures rigorous technical evaluation, real-time timer verification, and fair play.
+            Under the guidance of HOD {designatedHOD?.name || 'Dr. Shrikant Honade'} and faculty conveners, the symposium ensures rigorous technical evaluation, real-time timer verification, and fair play.
           </p>
         </div>
 

@@ -30,6 +30,7 @@ export default function FacultyTab() {
     designation: 'Assistant Professor',
     department: 'Electronics Engineering (VLSI Design & Technology)',
     position_role: 'Faculty Coordinator',
+    is_hod: 0,
     profile_image: '',
     description: ''
   });
@@ -50,6 +51,27 @@ export default function FacultyTab() {
     fetchFaculty();
   }, []);
 
+  const isFacultyHOD = (f) => Boolean(
+    f.is_hod === 1 ||
+    f.is_hod === true ||
+    f.position_role?.toLowerCase().includes('hod') ||
+    f.position_role?.toLowerCase().includes('head of department') ||
+    f.designation?.toLowerCase().includes('hod') ||
+    f.designation?.toLowerCase().includes('head of department') ||
+    f.designation?.toLowerCase().includes('head') ||
+    f.name?.toLowerCase().includes('honde') ||
+    f.name?.toLowerCase().includes('honade')
+  );
+
+  const handleSetHOD = async (id) => {
+    try {
+      await api.setFacultyHOD(id);
+      fetchFaculty();
+    } catch (err) {
+      alert(err.message || 'Failed to designate HOD');
+    }
+  };
+
   const getInitials = (name) => {
     return name
       .replace(/Dr\.|Prof\.|Mrs\.|Mr\./gi, '')
@@ -69,6 +91,7 @@ export default function FacultyTab() {
       designation: 'Assistant Professor',
       department: 'Electronics Engineering (VLSI Design & Technology)',
       position_role: 'Faculty Coordinator',
+      is_hod: 0,
       profile_image: '',
       description: ''
     });
@@ -109,11 +132,13 @@ export default function FacultyTab() {
 
   const handleOpenEdit = (f) => {
     setEditingId(f.id);
+    const hodFlag = isFacultyHOD(f) ? 1 : 0;
     setFormData({
       name: f.name,
       designation: f.designation,
       department: f.department || 'Electronics Engineering (VLSI Design & Technology)',
       position_role: f.position_role || 'Faculty Member',
+      is_hod: f.is_hod !== undefined ? f.is_hod : hodFlag,
       profile_image: f.profile_image || '',
       description: f.description || ''
     });
@@ -196,7 +221,7 @@ export default function FacultyTab() {
       {/* Grid of Faculty Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredFaculty.map((f) => {
-          const isHOD = f.name.toLowerCase().includes('shrikant honde') || f.designation.toLowerCase().includes('head');
+          const isHOD = isFacultyHOD(f);
 
           return (
             <div
@@ -234,10 +259,18 @@ export default function FacultyTab() {
                 </div>
 
                 <div className="space-y-1 min-w-0 flex-1">
-                  <span className="text-[10px] font-mono text-cyan-400 uppercase font-bold flex items-center gap-1">
-                    <Cpu className="w-3 h-3" />
-                    VLSI Design & Technology
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-cyan-400 uppercase font-bold flex items-center gap-1">
+                      <Cpu className="w-3 h-3" />
+                      VLSI Tech
+                    </span>
+                    {isHOD && (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase flex items-center gap-1 ml-auto">
+                        <Crown className="w-2.5 h-2.5 text-amber-400" />
+                        HOD
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-base font-bold text-white font-heading truncate">{f.name}</h3>
 
                   {/* Academic Position */}
@@ -261,6 +294,17 @@ export default function FacultyTab() {
               )}
 
               <div className="p-4 border-t border-slate-800/80 bg-slate-950/50 flex items-center justify-end gap-2">
+                {!isHOD && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetHOD(f.id)}
+                    className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-mono flex items-center gap-1 transition-all mr-auto"
+                    title="Designate this member as Head of Department (HOD)"
+                  >
+                    <Crown className="w-3 h-3 text-amber-400" />
+                    <span>Make HOD</span>
+                  </button>
+                )}
                 <button
                   onClick={() => handleOpenEdit(f)}
                   className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs flex items-center gap-1"
@@ -290,6 +334,35 @@ export default function FacultyTab() {
             </h3>
 
             <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+              {/* HOD Status Toggle */}
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-amber-400/40 transition-all select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.is_hod)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setFormData(prev => ({
+                      ...prev,
+                      is_hod: checked ? 1 : 0,
+                      position_role: checked ? 'Head of Department (HOD) & Patron' : (prev.position_role?.includes('HOD') ? 'Faculty Member' : prev.position_role),
+                      designation: checked && !prev.designation.toLowerCase().includes('head') ? 'Head of Department & Professor' : prev.designation
+                    }));
+                  }}
+                  className="w-4 h-4 text-amber-500 rounded border-slate-700 focus:ring-amber-400 accent-amber-500"
+                />
+                <div className="flex items-center gap-2 flex-1">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <span className="text-xs font-mono font-bold text-amber-300 block">
+                      Head of Department (HOD) & Tournament Patron
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono block">
+                      Featured in the prominent HOD card and symposium steering panel
+                    </span>
+                  </div>
+                </div>
+              </label>
+
               <div>
                 <label className="text-slate-300 font-mono">Full Name & Title</label>
                 <input
@@ -297,7 +370,7 @@ export default function FacultyTab() {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Dr. Shrikant Honde"
+                  placeholder="e.g. Dr. Faculty Name"
                   className="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm"
                 />
               </div>

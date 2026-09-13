@@ -58,6 +58,9 @@ export const api = {
   deleteTeam: (id) => request(`/teams/${id}`, { method: 'DELETE' }),
   clearSeedTeams: () => request('/teams/seed/clear', { method: 'DELETE' }),
   importTeams: (teams) => request('/teams/import', { method: 'POST', body: JSON.stringify({ teams }) }),
+  syncGoogleSheet: (data) => request('/teams/sync-google-sheet', { method: 'POST', body: JSON.stringify(data) }),
+  getGoogleApiConfig: () => request('/teams/google-api-config'),
+  updateGoogleApiConfig: (data) => request('/teams/google-api-config', { method: 'PUT', body: JSON.stringify(data) }),
 
   // Questions
   getQuestions: (params = {}) => {
@@ -75,6 +78,7 @@ export const api = {
   createFaculty: (data) => request('/faculty', { method: 'POST', body: JSON.stringify(data) }),
   updateFaculty: (id, data) => request(`/faculty/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteFaculty: (id) => request(`/faculty/${id}`, { method: 'DELETE' }),
+  setFacultyHOD: (id) => request(`/faculty/${id}/set-hod`, { method: 'POST' }),
 
   // Games
   getGameSession: (game) => request(`/games/session/${game}`),
