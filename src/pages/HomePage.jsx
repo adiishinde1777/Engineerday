@@ -40,7 +40,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
       .catch(console.error);
   }, []);
 
-  const eventBadge = "DATE & TIME: CLASSIFIED 🔒";
+  const eventBadge = "15 SEPTEMBER 2026 • 09:00 AM";
 
   return (
     <div className="relative min-h-screen">
@@ -56,7 +56,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
           
           {/* Top Pill / Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs sm:text-sm font-mono tracking-wider uppercase mb-6 shadow-lg shadow-cyan-950/50">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
             <span>DEPT. OF ELECTRONICS ENGINEERING (VLSI DESIGN & TECHNOLOGY) • {eventBadge}</span>
           </div>
 

@@ -31,7 +31,7 @@ import { useSquad } from '../context/SquadContext';
 
 export default function RegisterPage({ eventSettings, setCurrentPage }) {
   const { currentSquad, saveSquad } = useSquad();
-  const eventDateBadge = "DATE & TIME: CLASSIFIED 🔒";
+  const eventDateBadge = "15 SEPTEMBER 2026 • 09:00 AM";
 
   // Form State
   const [formData, setFormData] = useState({
@@ -301,7 +301,7 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
                     : "Engineering Pictionary"}
               </div>
               <p className="text-[11px] text-slate-400">
-                {activeReceipt.game === 'both' ? 'All-Rounder Combo • Date Classified 🔒' : 'Technical showdown • Date Classified 🔒'}
+                {activeReceipt.game === 'both' ? 'All-Rounder Combo • 15 Sept 2026' : 'Technical showdown • 15 Sept 2026'}
               </p>
             </div>
 
