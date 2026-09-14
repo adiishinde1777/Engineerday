@@ -13,10 +13,37 @@ export function SquadProvider({ children }) {
     }
   });
 
+  const [cachedTeams, setCachedTeams] = useState(() => {
+    try {
+      const saved = localStorage.getItem('engineers_day_cached_teams');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveCachedTeams = (teamsList) => {
+    if (Array.isArray(teamsList) && teamsList.length > 0) {
+      setCachedTeams(teamsList);
+      try {
+        localStorage.setItem('engineers_day_cached_teams', JSON.stringify(teamsList));
+      } catch {}
+    }
+  };
+
   const saveSquad = (squad) => {
     setCurrentSquad(squad);
     if (squad) {
-      localStorage.setItem('engineers_day_registered_squad', JSON.stringify(squad));
+      try {
+        localStorage.setItem('engineers_day_registered_squad', JSON.stringify(squad));
+        // Also ensure squad is present in cachedTeams
+        setCachedTeams((prev) => {
+          const exists = prev.some(t => t.id === squad.id || t.team_name?.toLowerCase() === squad.team_name?.toLowerCase());
+          const updated = exists ? prev.map(t => (t.id === squad.id ? { ...t, ...squad } : t)) : [squad, ...prev];
+          try { localStorage.setItem('engineers_day_cached_teams', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+      } catch {}
     } else {
       localStorage.removeItem('engineers_day_registered_squad');
     }
@@ -52,6 +79,8 @@ export function SquadProvider({ children }) {
     <SquadContext.Provider value={{
       currentSquad,
       isSquadRegistered,
+      cachedTeams,
+      saveCachedTeams,
       saveSquad,
       loginSquad,
       logoutSquad

@@ -14,23 +14,46 @@ import {
 import { useSocket } from '../context/SocketContext';
 import { api } from '../utils/api';
 import TeamProfileModal from '../components/TeamProfileModal';
+import { useSquad } from '../context/SquadContext';
 
 export default function LiveDashboardPage({ setCurrentPage }) {
   const { socket, scoreboard, setScoreboard, isConnected } = useSocket();
+  const { cachedTeams, saveCachedTeams } = useSquad();
   const [filterGame, setFilterGame] = useState('all'); // 'all' | 'brain' | 'pictionary'
   const [search, setSearch] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Initialize with cached teams if scoreboard is currently empty
+  useEffect(() => {
+    if ((!scoreboard || scoreboard.length === 0) && cachedTeams && cachedTeams.length > 0) {
+      setScoreboard(cachedTeams);
+    }
+  }, [cachedTeams]);
+
   const fetchScoreboard = async () => {
     setLoading(true);
     try {
       const res = await api.getTeams({ game: filterGame, search: search.trim() });
-      if (res.success) {
-        setScoreboard(res.teams);
+      if (res.success && Array.isArray(res.teams)) {
+        if (res.teams.length > 0) {
+          setScoreboard(res.teams);
+          if (!search && filterGame === 'all') {
+            saveCachedTeams(res.teams);
+          }
+        } else if (cachedTeams && cachedTeams.length > 0 && !search && filterGame === 'all') {
+          setScoreboard(cachedTeams);
+        } else {
+          setScoreboard(res.teams);
+        }
+      } else if (cachedTeams && cachedTeams.length > 0 && !search) {
+        setScoreboard(cachedTeams);
       }
     } catch (err) {
       console.error(err);
+      if (cachedTeams && cachedTeams.length > 0 && !search) {
+        setScoreboard(cachedTeams);
+      }
     } finally {
       setLoading(false);
     }

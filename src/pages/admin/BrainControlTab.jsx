@@ -87,6 +87,7 @@ export default function BrainControlTab() {
 
   const session = brainSession?.session || monitor?.session || null;
   const isRunning = session?.status === 'RUNNING';
+  const isStopped = session?.status === 'STOPPED' || session?.status === 'PAUSED' || Boolean(session?.is_paused && session?.status !== 'TIME_UP');
   const isTimeUp = session?.status === 'TIME_UP';
 
   const [selectedRound, setSelectedRound] = useState(1);
@@ -104,7 +105,7 @@ export default function BrainControlTab() {
   useEffect(() => {
     const calcElapsed = () => {
       const startedAtStr = session?.started_at || monitor.session?.started_at;
-      if (startedAtStr && (session?.status === 'RUNNING' || session?.status === 'TIME_UP')) {
+      if (startedAtStr && (session?.status === 'RUNNING' || session?.status === 'TIME_UP' || session?.status === 'STOPPED' || session?.status === 'PAUSED')) {
         const startMs = new Date(startedAtStr).getTime();
         const nowMs = Date.now();
         const diffSec = Math.max(0, Math.floor((nowMs - startMs) / 1000));
@@ -135,8 +136,14 @@ export default function BrainControlTab() {
       const payload = { action, round: selectedRound, ...extra };
       await api.controlGame('brain', payload);
       fetchMonitor();
-      if (action === 'STOP_GAME') {
-        setActionSuccessMsg(`Round ${selectedRound} stopped! Final points calculated for all teams and Live Dashboard updated.`);
+      if (action === 'STOP_ROUND' || action === 'STOP_GAME') {
+        setActionSuccessMsg(`Round ${selectedRound} stopped! Questions locked on participants' screens.`);
+        sound.playWrong();
+      } else if (action === 'RESUME_ROUND' || action === 'RESUME_GAME') {
+        setActionSuccessMsg(`Round ${selectedRound} resumed! Remaining questions unlocked for all squads.`);
+        sound.playCorrect();
+      } else if (action === 'FINALIZE_ROUND') {
+        setActionSuccessMsg(`Round ${selectedRound} finalized! Final scores calculated for all teams and Live Dashboard updated.`);
         sound.playCorrect();
       } else if (action === 'START_GAME') {
         setActionSuccessMsg(`Round ${extra.round || selectedRound} Started! Teams can now view & answer questions in real-time.`);
@@ -186,14 +193,16 @@ export default function BrainControlTab() {
           <div className={`px-4 py-2 rounded-2xl border text-xs font-mono font-bold uppercase flex items-center gap-2 shadow-lg ${
             isRunning
               ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 shadow-emerald-500/20 animate-pulse'
-              : isTimeUp
-                ? 'bg-rose-950/90 border-rose-500 text-rose-300'
-                : 'bg-slate-900 border-slate-700 text-slate-400'
+              : isStopped
+                ? 'bg-amber-950/90 border-amber-500 text-amber-300 shadow-amber-500/20 animate-pulse'
+                : isTimeUp
+                  ? 'bg-rose-950/90 border-rose-500 text-rose-300'
+                  : 'bg-slate-900 border-slate-700 text-slate-400'
           }`}>
             <span className={`w-2 h-2 rounded-full ${
-              isRunning ? 'bg-emerald-400 animate-ping' : isTimeUp ? 'bg-rose-400' : 'bg-slate-500'
+              isRunning ? 'bg-emerald-400 animate-ping' : isStopped ? 'bg-amber-400 animate-pulse' : isTimeUp ? 'bg-rose-400' : 'bg-slate-500'
             }`} />
-            STATUS: {session?.status || 'IDLE'}
+            STATUS: {isRunning ? 'RUNNING (LIVE)' : isStopped ? 'STOPPED (STANDBY TO RESUME)' : isTimeUp ? 'ROUND COMPLETED' : (session?.status || 'IDLE')}
           </div>
 
           <button
@@ -230,7 +239,7 @@ export default function BrainControlTab() {
               Select Round & Manage Game Execution
             </h3>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Choose which round to start (Round 1, 2, or 3) and view live session duration.
+              Choose which round to start (Round 1, 2, or 3) and control Start / Stop / Resume.
             </p>
           </div>
 
@@ -241,7 +250,7 @@ export default function BrainControlTab() {
             </div>
             <div>
               <div className="text-[10px] font-mono text-slate-400 uppercase font-bold tracking-wider">
-                {isRunning ? '● LIVE ELAPSED TIME' : isTimeUp ? 'ROUND DURATION' : 'SESSION STOPWATCH'}
+                {isRunning ? '● LIVE ELAPSED TIME' : isStopped ? '⏸ ROUND STOPPED (PAUSED)' : isTimeUp ? 'ROUND DURATION' : 'SESSION STOPWATCH'}
               </div>
               <div className="text-2xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-emerald-300">
                 {elapsedTimeStr}
@@ -280,6 +289,9 @@ export default function BrainControlTab() {
               {session?.round === 1 && isRunning && (
                 <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
               )}
+              {session?.round === 1 && isStopped && (
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">⏸ STOPPED</span>
+              )}
             </div>
             <div className="text-sm font-bold text-white font-heading">
               Technical Foundation MCQs
@@ -292,7 +304,7 @@ export default function BrainControlTab() {
             </div>
           </button>
 
-          {/* Round 2 Card */}
+          {/* Round 2 Card (USER QUESTIONS APPLIED) */}
           <button
             type="button"
             onClick={() => setSelectedRound(2)}
@@ -312,15 +324,18 @@ export default function BrainControlTab() {
               {session?.round === 2 && isRunning && (
                 <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
               )}
+              {session?.round === 2 && isStopped && (
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">⏸ STOPPED</span>
+              )}
             </div>
             <div className="text-sm font-bold text-white font-heading">
-              Speed & Applied Logic
+              Applied Engineering & Hardware
             </div>
             <p className="text-[11px] text-slate-400 font-sans mt-1">
-              CMOS Technology, Schmitt Triggers, Clock Cycles & Universal Gates.
+              AI Parallel Hardware, Combinational Circuits, Algebra & Passive Components.
             </p>
             <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
-              4 Questions • 30s per Q • 12 Pts
+              6 Questions • 30s per Q • 10 Pts
             </div>
           </button>
 
@@ -343,6 +358,9 @@ export default function BrainControlTab() {
               </span>
               {session?.round === 3 && isRunning && (
                 <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
+              )}
+              {session?.round === 3 && isStopped && (
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">⏸ STOPPED</span>
               )}
             </div>
             <div className="text-sm font-bold text-white font-heading">
@@ -371,11 +389,106 @@ export default function BrainControlTab() {
                 Currently Live on Screen
               </span>
             )}
+            {isStopped && (
+              <span className="text-amber-400 font-semibold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                Round Stopped (Waiting for Resume)
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {!isRunning ? (
+            {isRunning ? (
               <>
+                {/* STOP ROUND BUTTON (Stops the round questions and pauses the session) */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('STOP_ROUND')}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-2 shadow-lg shadow-amber-500/25 cursor-pointer disabled:opacity-50 transition-all"
+                  title="Temporarily stop this round and lock questions on participant screens"
+                >
+                  <Pause className="w-4 h-4 fill-current" />
+                  <span>Stop Round {selectedRound} (Stop Questions)</span>
+                </button>
+
+                {/* FINALIZE ROUND & LOCK SCORES */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('FINALIZE_ROUND')}
+                  disabled={loading}
+                  className="px-5 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer disabled:opacity-50"
+                  title="Finalize round, calculate scores, and permanently lock"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  <span>Finalize Round & Lock Scores</span>
+                </button>
+              </>
+            ) : isStopped ? (
+              <>
+                {/* RESUME ROUND BUTTON (Resumes the round and starts remaining questions) */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('RESUME_ROUND')}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 flex items-center gap-2 shadow-xl shadow-emerald-500/30 cursor-pointer disabled:opacity-50 animate-pulse ring-2 ring-emerald-400/60"
+                  title="Resume the round and let squads continue with remaining questions"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Resume Round {selectedRound} (Remaining Questions)</span>
+                </button>
+
+                {/* FINALIZE ROUND & LOCK SCORES */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('FINALIZE_ROUND')}
+                  disabled={loading}
+                  className="px-5 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer disabled:opacity-50"
+                  title="Finalize round without resuming"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  <span>Finalize Round</span>
+                </button>
+
+                {/* RESET ROUND */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('RESET_GAME', { round: selectedRound })}
+                  disabled={loading}
+                  className="px-4 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  title="Reset round to standby"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Reset Round {selectedRound}</span>
+                </button>
+              </>
+            ) : isTimeUp ? (
+              <>
+                {/* REOPEN / RESUME ROUND */}
+                <button
+                  type="button"
+                  onClick={() => handleAction('RESUME_ROUND')}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-50"
+                  title="Reopen round for squads to answer remaining questions"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Reopen / Resume Round {selectedRound}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAction('RESET_GAME', { round: selectedRound })}
+                  disabled={loading}
+                  className="px-4 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Reset Round {selectedRound}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* FRESH START ROUND */}
                 <button
                   type="button"
                   onClick={() => handleAction('START_GAME', { round: selectedRound })}
@@ -395,28 +508,6 @@ export default function BrainControlTab() {
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Reset Round {selectedRound}</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => handleAction('STOP_GAME')}
-                  disabled={loading}
-                  className="px-6 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer disabled:opacity-50 animate-pulse"
-                >
-                  <StopCircle className="w-4 h-4" />
-                  <span>Stop Round {selectedRound} & Finalize Scores</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAction('PAUSE_TIMER')}
-                  disabled={loading}
-                  className="px-4 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-amber-600 hover:bg-amber-500 text-slate-950 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <Pause className="w-4 h-4 fill-current" />
-                  <span>Pause Timer</span>
                 </button>
               </>
             )}
@@ -554,7 +645,9 @@ export default function BrainControlTab() {
                         <div className="text-xs font-mono font-bold text-white">
                           {isDone 
                             ? 'Completed All Questions ✓' 
-                            : `Currently on Question ${team.currentQuestionNum} of ${team.totalQuestions}`}
+                            : isStopped
+                              ? `Paused on Question ${team.currentQuestionNum} (${team.remainingCount !== undefined ? team.remainingCount : Math.max(0, team.totalQuestions - team.answeredCount)} remaining)`
+                              : `Currently on Question ${team.currentQuestionNum} of ${team.totalQuestions}`}
                         </div>
                       </div>
                     </div>
@@ -563,11 +656,13 @@ export default function BrainControlTab() {
                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase ${
                       isDone
                         ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                        : isSolving
-                          ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 animate-pulse'
-                          : 'bg-slate-800 text-slate-400'
+                        : isStopped
+                          ? 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                          : isSolving
+                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 animate-pulse'
+                            : 'bg-slate-800 text-slate-400'
                     }`}>
-                      {isDone ? 'COMPLETED' : isSolving ? '● SOLVING' : 'WAITING'}
+                      {isDone ? 'COMPLETED' : isStopped ? '⏸ PAUSED' : isSolving ? '● SOLVING' : 'WAITING'}
                     </span>
                   </div>
 
@@ -575,6 +670,9 @@ export default function BrainControlTab() {
                   <div className="flex items-center justify-between text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/80">
                     <div>
                       Answered: <strong className="text-white">{team.answeredCount} / {team.totalQuestions}</strong>
+                      <span className="ml-2 text-cyan-300 font-bold">
+                        ({team.remainingCount !== undefined ? team.remainingCount : Math.max(0, team.totalQuestions - team.answeredCount)} remaining)
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-emerald-400 font-semibold">{team.correctCount} Correct</span>

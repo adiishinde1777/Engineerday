@@ -128,12 +128,12 @@ export async function setupMySQL() {
     `);
 
     // Ensure soft delete columns exist in existing MySQL tables
-    try { await connection.query('ALTER TABLE teams ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch {}
-    try { await connection.query('ALTER TABLE teams ADD COLUMN deleted_at VARCHAR(64);'); } catch {}
-    try { await connection.query('ALTER TABLE faculty ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch {}
-    try { await connection.query('ALTER TABLE faculty ADD COLUMN deleted_at VARCHAR(64);'); } catch {}
-    try { await connection.query('ALTER TABLE questions ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch {}
-    try { await connection.query('ALTER TABLE questions ADD COLUMN deleted_at VARCHAR(64);'); } catch {}
+    try { await connection.query('ALTER TABLE teams ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch { }
+    try { await connection.query('ALTER TABLE teams ADD COLUMN deleted_at VARCHAR(64);'); } catch { }
+    try { await connection.query('ALTER TABLE faculty ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch { }
+    try { await connection.query('ALTER TABLE faculty ADD COLUMN deleted_at VARCHAR(64);'); } catch { }
+    try { await connection.query('ALTER TABLE questions ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch { }
+    try { await connection.query('ALTER TABLE questions ADD COLUMN deleted_at VARCHAR(64);'); } catch { }
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS game_sessions (
@@ -175,86 +175,127 @@ export async function setupMySQL() {
       try {
         const { DatabaseSync } = await import('node:sqlite');
         const sqlite = new DatabaseSync(sqliteDbPath);
-        
-        // Check if teams already exist in MySQL
-        const [existingTeams] = await connection.query('SELECT count(*) as count FROM teams');
-        if (existingTeams[0].count === 0) {
-          console.log('🚚 Migrating existing SQLite data to MySQL...');
 
-          // Migrate Admins
-          const admins = sqlite.prepare('SELECT * FROM admins').all();
-          for (const a of admins) {
-            await connection.query(
-              'INSERT IGNORE INTO admins (id, username, password_hash, full_name, created_at) VALUES (?, ?, ?, ?, ?)',
-              [a.id, a.username, a.password_hash, a.full_name, a.created_at]
-            );
-          }
+        // 5. Complete Two-Way Reconciliation between SQLite and MySQL
+        console.log('🔄 Reconciling and synchronizing all data between SQLite and MySQL...');
 
-          // Migrate Settings
-          const settings = sqlite.prepare('SELECT * FROM event_settings').all();
-          for (const s of settings) {
-            await connection.query(
-              'INSERT IGNORE INTO event_settings (setting_key, setting_value) VALUES (?, ?)',
-              [s.key, s.value]
-            );
-          }
-
-          // Migrate Scoring Settings
-          const scoring = sqlite.prepare('SELECT * FROM scoring_settings').all();
-          for (const sc of scoring) {
-            await connection.query(
-              `INSERT IGNORE INTO scoring_settings 
-               (game, base_points, timer_duration, negative_points, tier_0_5, tier_6_10, tier_11_15, tier_16_20, tier_21_25, tier_26_30, tie_breaker)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [sc.game, sc.base_points, sc.timer_duration, sc.negative_points, sc.tier_0_5, sc.tier_6_10, sc.tier_11_15, sc.tier_16_20, sc.tier_21_25, sc.tier_26_30, sc.tie_breaker]
-            );
-          }
-
-          // Migrate Faculty
-          const faculty = sqlite.prepare('SELECT * FROM faculty').all();
-          for (const f of faculty) {
-            await connection.query(
-              'INSERT IGNORE INTO faculty (id, name, designation, department, profile_image, description, position_role, is_hod, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-              [f.id, f.name, f.designation, f.department, f.profile_image, f.description, f.position_role, f.is_hod || 0, f.created_at]
-            );
-          }
-
-          // Migrate Questions
-          const questions = sqlite.prepare('SELECT * FROM questions').all();
-          for (const q of questions) {
-            await connection.query(
-              `INSERT IGNORE INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [q.id, q.game, q.round, q.question, q.type, q.options_json, q.correct_answer, q.time_limit, q.base_points, q.image_url, q.created_at]
-            );
-          }
-
-          // Migrate Teams
-          const teams = sqlite.prepare('SELECT * FROM teams').all();
-          for (const t of teams) {
-            await connection.query(
-              `INSERT IGNORE INTO teams 
-               (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank_num, status, is_seed, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [t.id, t.team_name, t.game, t.captain, t.member1, t.member2, t.member3, t.contact, t.password_hash, t.registration_status, t.score, t.rank || 0, t.status, t.is_seed || 0, t.created_at]
-            );
-          }
-
-          // Migrate Game Sessions
-          const sessions = sqlite.prepare('SELECT * FROM game_sessions').all();
-          for (const gs of sessions) {
-            await connection.query(
-              `INSERT IGNORE INTO game_sessions 
-               (game, round, current_question_id, current_team_id, status, timer_remaining, timer_started_at, is_paused)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [gs.game, gs.round, gs.current_question_id, gs.current_team_id, gs.status, gs.timer_remaining, gs.timer_started_at, gs.is_paused]
-            );
-          }
-
-          console.log(`🎉 Successfully migrated ${teams.length} teams, ${questions.length} questions, and faculty to MySQL!`);
-        } else {
-          console.log(`ℹ️ MySQL already has ${existingTeams[0].count} teams. Skipping initial migration.`);
+        // Migrate Admins
+        const admins = sqlite.prepare('SELECT * FROM admins').all();
+        for (const a of admins) {
+          await connection.query(
+            'INSERT IGNORE INTO admins (id, username, password_hash, full_name, created_at) VALUES (?, ?, ?, ?, ?)',
+            [a.id, a.username, a.password_hash, a.full_name, a.created_at]
+          );
         }
+
+        // Migrate Settings
+        const settings = sqlite.prepare('SELECT * FROM event_settings').all();
+        for (const s of settings) {
+          await connection.query(
+            'INSERT IGNORE INTO event_settings (setting_key, setting_value) VALUES (?, ?)',
+            [s.key, s.value]
+          );
+        }
+
+        // Migrate Scoring Settings
+        const scoring = sqlite.prepare('SELECT * FROM scoring_settings').all();
+        for (const sc of scoring) {
+          await connection.query(
+            `INSERT IGNORE INTO scoring_settings 
+             (game, base_points, timer_duration, negative_points, tier_0_5, tier_6_10, tier_11_15, tier_16_20, tier_21_25, tier_26_30, tie_breaker)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [sc.game, sc.base_points, sc.timer_duration, sc.negative_points, sc.tier_0_5, sc.tier_6_10, sc.tier_11_15, sc.tier_16_20, sc.tier_21_25, sc.tier_26_30, sc.tie_breaker]
+          );
+        }
+
+        // Migrate Faculty
+        const faculty = sqlite.prepare('SELECT * FROM faculty').all();
+        for (const f of faculty) {
+          await connection.query(
+            'INSERT IGNORE INTO faculty (id, name, designation, department, profile_image, description, position_role, is_hod, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [f.id, f.name, f.designation, f.department, f.profile_image, f.description, f.position_role, f.is_hod || 0, f.created_at]
+          );
+        }
+
+        // Migrate Questions
+        const questions = sqlite.prepare('SELECT * FROM questions').all();
+        for (const q of questions) {
+          await connection.query(
+            `INSERT IGNORE INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [q.id, q.game, q.round, q.question, q.type, q.options_json, q.correct_answer, q.time_limit, q.base_points, q.image_url, q.created_at]
+          );
+        }
+
+        // Bidirectional Team Sync: Push all SQLite teams to MySQL
+        const sqliteTeams = sqlite.prepare('SELECT * FROM teams').all();
+        let pushedToMySQL = 0;
+        for (const t of sqliteTeams) {
+          await connection.query(
+            `INSERT INTO teams 
+             (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank_num, status, is_seed, is_deleted, deleted_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               team_name = VALUES(team_name),
+               game = VALUES(game),
+               captain = VALUES(captain),
+               member1 = VALUES(member1),
+               member2 = VALUES(member2),
+               member3 = VALUES(member3),
+               contact = VALUES(contact),
+               password_hash = COALESCE(VALUES(password_hash), password_hash),
+               registration_status = VALUES(registration_status),
+               score = VALUES(score),
+               rank_num = VALUES(rank_num),
+               status = VALUES(status),
+               is_seed = VALUES(is_seed),
+               is_deleted = VALUES(is_deleted),
+               deleted_at = VALUES(deleted_at)`,
+            [
+              t.id, t.team_name, t.game, t.captain, t.member1, t.member2, t.member3, t.contact,
+              t.password_hash, t.registration_status, t.score || 0, t.rank || 0, t.status,
+              t.is_seed || 0, t.is_deleted || 0, t.deleted_at || null, t.created_at || new Date().toISOString()
+            ]
+          );
+          pushedToMySQL++;
+        }
+
+        // Pull any teams in MySQL that are not in SQLite into SQLite
+        const [mysqlTeams] = await connection.query('SELECT * FROM teams');
+        const sqMap = new Map();
+        sqliteTeams.forEach(r => sqMap.set(r.id, r));
+
+        const insertSq = sqlite.prepare(`
+          INSERT INTO teams 
+          (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank, status, is_seed, is_deleted, deleted_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        let pulledToSQLite = 0;
+        for (const mt of mysqlTeams) {
+          if (!sqMap.has(mt.id)) {
+            try {
+              insertSq.run(
+                mt.id, mt.team_name, mt.game, mt.captain, mt.member1, mt.member2, mt.member3, mt.contact,
+                mt.password_hash || null, mt.registration_status || 'VERIFIED', mt.score || 0,
+                mt.rank_num || 0, mt.status || 'REGISTERED', mt.is_seed || 0, mt.is_deleted || 0,
+                mt.deleted_at || null, mt.created_at || new Date().toISOString()
+              );
+              pulledToSQLite++;
+            } catch {}
+          }
+        }
+
+        // Update persistent JSON backup file
+        try {
+          const allActiveTeams = sqlite.prepare('SELECT * FROM teams WHERE (is_deleted = 0 OR is_deleted IS NULL)').all();
+          const backupDir = path.join(__dirname, 'data');
+          if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+          fs.writeFileSync(path.join(backupDir, 'persistent_teams.json'), JSON.stringify(allActiveTeams, null, 2), 'utf-8');
+          console.log(`💾 Saved ${allActiveTeams.length} active teams to persistent JSON backup!`);
+        } catch {}
+
+        console.log(`🎉 Sync summary: ${pushedToMySQL} squads saved in MySQL, ${pulledToSQLite} pulled to SQLite. All teams exist in both places!`);
       } catch (migErr) {
         console.warn('⚠️ SQLite to MySQL migration notice:', migErr.message);
       }

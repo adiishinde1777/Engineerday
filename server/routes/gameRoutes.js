@@ -79,8 +79,26 @@ router.post('/control/:game', requireAdmin, (req, res) => {
   switch (action) {
     case 'START_GAME': {
       const targetRound = Number(round) || Number(session.round) || 1;
-      const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = ? ORDER BY created_at ASC LIMIT 1').get(game, targetRound);
       const duration = Number(timerDuration) || defaultTimer;
+
+      // If round was previously STOPPED or PAUSED and admin starts the same round, resume seamlessly
+      if ((session.status === 'STOPPED' || session.status === 'PAUSED') && Number(session.round) === targetRound) {
+        db.prepare(`
+          UPDATE game_sessions 
+          SET status = 'RUNNING', is_paused = 0
+          WHERE game = ?
+        `).run(game);
+        resumeServerTimer(game);
+        const io = getIO();
+        if (io) {
+          io.to(`game_${game}`).emit('round_resumed', { game, round: targetRound });
+          io.emit('round_resumed', { game, round: targetRound });
+        }
+        broadcastSessionState(game);
+        break;
+      }
+
+      const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = ? ORDER BY created_at ASC LIMIT 1').get(game, targetRound);
       const startedAt = new Date().toISOString();
       db.prepare(`
         UPDATE game_sessions 
@@ -89,6 +107,11 @@ router.post('/control/:game', requireAdmin, (req, res) => {
       `).run(targetRound, firstQ ? firstQ.id : null, duration, startedAt, game);
 
       startServerTimer(game, duration);
+      const io = getIO();
+      if (io) {
+        io.to(`game_${game}`).emit('round_resumed', { game, round: targetRound });
+        io.emit('round_resumed', { game, round: targetRound });
+      }
       break;
     }
 
@@ -177,11 +200,48 @@ router.post('/control/:game', requireAdmin, (req, res) => {
       break;
     }
 
-    case 'STOP_GAME':
+    case 'STOP_ROUND':
+    case 'STOP_GAME': {
+      // Temporarily stop the round questions & pause the timer for remaining questions
+      pauseServerTimer(game);
+      db.prepare("UPDATE game_sessions SET status = 'STOPPED', is_paused = 1 WHERE game = ?").run(game);
+      const io = getIO();
+      if (io) {
+        io.to(`game_${game}`).emit('round_stopped', { 
+          game, 
+          round: session.round,
+          message: `Round ${session.round} stopped by Admin. Standby for remaining questions.` 
+        });
+        io.emit('round_stopped', { game, round: session.round });
+      }
+      broadcastSessionState(game);
+      break;
+    }
+
+    case 'RESUME_ROUND':
+    case 'RESUME_GAME':
+    case 'RESUME_TIMER': {
+      // Resume the round so teams can continue with remaining questions
+      db.prepare("UPDATE game_sessions SET status = 'RUNNING', is_paused = 0 WHERE game = ?").run(game);
+      resumeServerTimer(game);
+      const io = getIO();
+      if (io) {
+        io.to(`game_${game}`).emit('round_resumed', { 
+          game, 
+          round: session.round,
+          message: `Round ${session.round} resumed! Continue answering remaining questions.` 
+        });
+        io.emit('round_resumed', { game, round: session.round });
+      }
+      broadcastSessionState(game);
+      break;
+    }
+
+    case 'FINALIZE_ROUND':
     case 'STOP_TIMER':
     case 'STOP_PICTIONARY_TURN': {
       stopServerTimer(game);
-      db.prepare("UPDATE game_sessions SET status = 'TIME_UP', timer_remaining = 0 WHERE game = ?").run(game);
+      db.prepare("UPDATE game_sessions SET status = 'TIME_UP', timer_remaining = 0, is_paused = 0 WHERE game = ?").run(game);
       updateRanks(game);
       broadcastScoreboard();
       const io = getIO();
@@ -191,15 +251,10 @@ router.post('/control/:game', requireAdmin, (req, res) => {
         io.emit('brain_round_finished', {
           game,
           status: 'TIME_UP',
-          message: 'Round stopped! Points calculated and dashboard updated.'
+          message: 'Round finalized! Points calculated and dashboard updated.'
         });
       }
       broadcastSessionState(game);
-      break;
-    }
-
-    case 'RESUME_TIMER': {
-      resumeServerTimer(game);
       break;
     }
 
@@ -315,7 +370,13 @@ router.post('/submit-answer', (req, res) => {
 
   const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(activeGame);
   if (!session || session.status !== 'RUNNING') {
-    return res.status(400).json({ success: false, message: 'Game has not started or is not currently active for submissions' });
+    const isStopped = session && (session.status === 'STOPPED' || session.status === 'PAUSED');
+    return res.status(400).json({ 
+      success: false, 
+      message: isStopped 
+        ? 'The round is currently stopped by the Admin. Submissions are temporarily locked until the round is resumed.'
+        : 'Game has not started or is not currently active for submissions' 
+    });
   }
 
 
@@ -710,6 +771,7 @@ router.get('/monitor/:game', (req, res) => {
       currentQuestionNum,
       totalQuestions: totalQuestions || 6,
       answeredCount,
+      remainingCount: Math.max(0, (totalQuestions || 6) - answeredCount),
       correctCount,
       wrongCount,
       isCompleted,

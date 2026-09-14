@@ -31,7 +31,7 @@ import { useSquad } from '../context/SquadContext';
 import { formatEventDateTime } from '../utils/dateFormatter';
 
 export default function RegisterPage({ eventSettings, setCurrentPage }) {
-  const { currentSquad, saveSquad } = useSquad();
+  const { currentSquad, saveSquad, cachedTeams, saveCachedTeams } = useSquad();
   const eventDateBadge = formatEventDateTime(eventSettings?.eventDate, '15 SEPTEMBER 2026 • 10:00 AM');
 
   // Form State
@@ -53,22 +53,34 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
   const [registeredTeam, setRegisteredTeam] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
 
-  // Live Registered Teams List State
-  const [teams, setTeams] = useState([]);
-  const [loadingTeams, setLoadingTeams] = useState(true);
+  // Live Registered Teams List State with permanent local fallback
+  const [teams, setTeams] = useState(() => (Array.isArray(cachedTeams) && cachedTeams.length > 0 ? cachedTeams : []));
+  const [loadingTeams, setLoadingTeams] = useState(teams.length === 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGame, setFilterGame] = useState('all'); // 'all' | 'brain' | 'pictionary'
 
-  // Fetch registered teams from database
+  // Fetch registered teams from database with persistent cache shield
   const fetchRegisteredTeams = async () => {
     try {
-      setLoadingTeams(true);
+      if (teams.length === 0) setLoadingTeams(true);
       const res = await api.getTeams();
-      if (res.success) {
-        setTeams(res.teams || []);
+      if (res.success && Array.isArray(res.teams)) {
+        if (res.teams.length > 0) {
+          setTeams(res.teams);
+          saveCachedTeams(res.teams);
+        } else if (cachedTeams && cachedTeams.length > 0) {
+          setTeams(cachedTeams);
+        } else {
+          setTeams([]);
+        }
+      } else if (cachedTeams && cachedTeams.length > 0) {
+        setTeams(cachedTeams);
       }
     } catch (err) {
       console.error('Failed to fetch teams:', err);
+      if (cachedTeams && cachedTeams.length > 0) {
+        setTeams(cachedTeams);
+      }
     } finally {
       setLoadingTeams(false);
     }

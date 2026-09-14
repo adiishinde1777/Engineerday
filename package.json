@@ -7,7 +7,7 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "dev": "concurrently -k -s first -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"node --watch --watch-path=server server/index.js\" \"vite\"",
+    "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"node --watch server/index.js\" \"vite\"",
     "server": "node server/index.js",
     "client": "vite",
     "build": "vite build",

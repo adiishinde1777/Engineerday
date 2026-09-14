@@ -396,8 +396,8 @@ function seedDefaultData() {
     }
   }
 
-  // Teams table starts clean: Teams are created when users register or admin adds them
-
+  // Restore teams from persistent backup file so registrations are never lost across restarts/refreshes
+  restoreTeamsFromBackup();
 
   // Seed Questions for Engineer's Brain & Engineering Pictionary
   const qCheck = db.prepare('SELECT count(*) as count FROM questions').get();
@@ -613,53 +613,77 @@ function seedDefaultData() {
     `);
 
     const additionalBrainQuestions = [
-      // BRAIN ROUND 2 (Speed & Applied Electronics / Logic)
+      // BRAIN ROUND 2 (Official Tournament MCQs)
       {
         id: 'q-b2-1',
         game: 'brain',
         round: 2,
-        question: 'In a CMOS inverter, which transistor conducts when the input voltage is LOW (Logic 0)?',
-        type: 'CMOS Technology',
-        options: JSON.stringify(['PMOS', 'NMOS', 'Both PMOS and NMOS', 'Neither']),
-        answer: 'PMOS',
+        question: 'Which hardware is especially designed for parallel AI calculations?',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['GPU', 'Keyboard', 'Printer', 'Relay']),
+        answer: 'GPU',
         timeLimit: 30,
-        basePoints: 12,
+        basePoints: 10,
         imageUrl: ''
       },
       {
         id: 'q-b2-2',
         game: 'brain',
         round: 2,
-        question: 'What is the primary function of a Schmitt Trigger in digital electronics?',
-        type: 'Waveform Conditioning',
-        options: JSON.stringify(['Wave shaping & noise immunity with hysteresis', 'Direct current attenuation', 'Clock frequency division by 4', 'Impedance mismatching']),
-        answer: 'Wave shaping & noise immunity with hysteresis',
+        question: 'A combinational circuit has no:',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['Inputs', 'Outputs', 'Memory', 'Logic gates']),
+        answer: 'Memory',
         timeLimit: 30,
-        basePoints: 12,
+        basePoints: 10,
         imageUrl: ''
       },
       {
         id: 'q-b2-3',
         game: 'brain',
         round: 2,
-        question: 'If a microprocessor clock frequency is 50 MHz, what is the time period of one clock cycle?',
-        type: 'Digital Timing',
-        options: JSON.stringify(['20 ns', '50 ns', '10 ns', '2 ns']),
-        answer: '20 ns',
+        question: 'if x + (1/x) = 3 ,  then find  [ x^2 + (1/x^2) ]',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['5', '10', '7', '9']),
+        answer: '7',
         timeLimit: 30,
-        basePoints: 12,
+        basePoints: 10,
         imageUrl: ''
       },
       {
         id: 'q-b2-4',
         game: 'brain',
         round: 2,
-        question: 'Which logic gates are universally capable of constructing any Boolean function?',
-        type: 'Universal Logic',
-        options: JSON.stringify(['NAND and NOR', 'AND and OR', 'XOR and XNOR', 'NOT only']),
-        answer: 'NAND and NOR',
+        question: 'A combinational circuit has 4 inputs and 2 outputs. Which device could perform this function?',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['4-to-2 Decoder', '4-to-2 Encoder', '4-bit Counter', '2-bit Comparator']),
+        answer: '4-to-2 Encoder',
         timeLimit: 30,
-        basePoints: 12,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-5',
+        game: 'brain',
+        round: 2,
+        question: 'Which memory is volatile?',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['ROM', 'Flash memory', 'RAM', 'EEPROM']),
+        answer: 'RAM',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-6',
+        game: 'brain',
+        round: 2,
+        question: 'Two Capacitor of 6 farad  each are connected in parallel. Their equivalent resistance is:',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['12 farad', '6 farad', '3 farad', '1.5 farad']),
+        answer: '12 farad',
+        timeLimit: 30,
+        basePoints: 10,
         imageUrl: ''
       },
 
@@ -736,6 +760,108 @@ function seedDefaultData() {
     }
   }
 
+  // Verify and ensure official Brain Round 2 questions are synced
+  const brainR2OfficialCheck = db.prepare("SELECT id FROM questions WHERE game = 'brain' AND round = 2 AND question LIKE '%parallel AI calculations%'").get();
+  if (!brainR2OfficialCheck) {
+    console.log('[DB Sync] Syncing official Round 2 MCQs for Engineer’s Brain...');
+    db.prepare("DELETE FROM questions WHERE game = 'brain' AND round = 2").run();
+    const insertQ = db.prepare(`
+      INSERT INTO questions 
+      (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const r2Questions = [
+      {
+        id: 'q-b2-1',
+        game: 'brain',
+        round: 2,
+        question: 'Which hardware is especially designed for parallel AI calculations?',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['GPU', 'Keyboard', 'Printer', 'Relay']),
+        answer: 'GPU',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-2',
+        game: 'brain',
+        round: 2,
+        question: 'A combinational circuit has no:',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['Inputs', 'Outputs', 'Memory', 'Logic gates']),
+        answer: 'Memory',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-3',
+        game: 'brain',
+        round: 2,
+        question: 'if x + (1/x) = 3 ,  then find  [ x^2 + (1/x^2) ]',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['5', '10', '7', '9']),
+        answer: '7',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-4',
+        game: 'brain',
+        round: 2,
+        question: 'A combinational circuit has 4 inputs and 2 outputs. Which device could perform this function?',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['4-to-2 Decoder', '4-to-2 Encoder', '4-bit Counter', '2-bit Comparator']),
+        answer: '4-to-2 Encoder',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-5',
+        game: 'brain',
+        round: 2,
+        question: 'Which memory is volatile?',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['ROM', 'Flash memory', 'RAM', 'EEPROM']),
+        answer: 'RAM',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-6',
+        game: 'brain',
+        round: 2,
+        question: 'Two Capacitor of 6 farad  each are connected in parallel. Their equivalent resistance is:',
+        type: 'Multiple Choice',
+        options: JSON.stringify(['12 farad', '6 farad', '3 farad', '1.5 farad']),
+        answer: '12 farad',
+        timeLimit: 30,
+        basePoints: 10,
+        imageUrl: ''
+      }
+    ];
+
+    for (const q of r2Questions) {
+      insertQ.run(
+        q.id,
+        q.game,
+        q.round,
+        q.question,
+        q.type,
+        q.options,
+        q.answer,
+        q.timeLimit,
+        q.basePoints,
+        q.imageUrl,
+        new Date().toISOString()
+      );
+    }
+  }
+
   // Update initial ranks based on score
   updateRanks('brain');
   updateRanks('pictionary');
@@ -761,4 +887,80 @@ export function updateRanks(game) {
   }
 }
 
+const backupDir = path.join(__dirname, 'data');
+const backupFilePath = path.join(backupDir, 'persistent_teams.json');
+
+/**
+ * Save all active teams into persistent JSON backup file
+ */
+export function savePersistentTeamsBackup(teamsList = null) {
+  try {
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const teamsToSave = teamsList || db.prepare('SELECT * FROM teams WHERE (is_deleted = 0 OR is_deleted IS NULL)').all();
+    fs.writeFileSync(backupFilePath, JSON.stringify(teamsToSave, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Persistent Teams Backup Error]:', err.message);
+  }
+}
+
+/**
+ * Restore teams from persistent JSON backup file into SQLite if missing
+ */
+export function restoreTeamsFromBackup() {
+  try {
+    if (!fs.existsSync(backupFilePath)) return;
+    const raw = fs.readFileSync(backupFilePath, 'utf-8');
+    const teams = JSON.parse(raw);
+    if (!Array.isArray(teams) || teams.length === 0) return;
+
+    const existingRows = db.prepare('SELECT id, team_name FROM teams').all();
+    const existingIds = new Set(existingRows.map(r => r.id));
+    const existingNames = new Set(existingRows.map(r => r.team_name ? r.team_name.toLowerCase() : ''));
+
+    const insertStmt = db.prepare(`
+      INSERT INTO teams (
+        id, team_name, game, captain, member1, member2, member3, contact,
+        password_hash, registration_status, score, rank, status, is_seed, is_deleted, deleted_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let restoredCount = 0;
+    for (const t of teams) {
+      if (!existingIds.has(t.id) && !existingNames.has(t.team_name.toLowerCase())) {
+        insertStmt.run(
+          t.id,
+          t.team_name,
+          t.game || 'brain',
+          t.captain || 'Captain',
+          t.member1 || t.captain || 'Member 1',
+          t.member2 || 'Member 2',
+          t.member3 || 'Member 3',
+          t.contact || 'N/A',
+          t.password_hash || null,
+          t.registration_status || 'VERIFIED',
+          t.score || 0,
+          t.rank || 0,
+          t.status || 'REGISTERED',
+          t.is_seed || 0,
+          t.is_deleted || 0,
+          t.deleted_at || null,
+          t.created_at || new Date().toISOString()
+        );
+        restoredCount++;
+        existingIds.add(t.id);
+        existingNames.add(t.team_name.toLowerCase());
+      }
+    }
+
+    if (restoredCount > 0) {
+      console.log(`🛡️ [Persistence Shield] Restored ${restoredCount} persistent squad registrations into website SQLite database.`);
+    }
+  } catch (err) {
+    console.warn('[Persistent Teams Restore Error]:', err.message);
+  }
+}
+
 export default db;
+

@@ -1,6 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import db, { updateRanks } from '../db.js';
+import db, { updateRanks, savePersistentTeamsBackup } from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { broadcastScoreboard } from '../socketHandler.js';
 import { syncToMySQL, upsertTeamToMySQL, syncMySQLToSQLite } from '../mysqlSync.js';
@@ -185,6 +185,7 @@ router.post('/', (req, res) => {
     updateRanks(game);
   }
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.status(201).json({ 
     success: true, 
@@ -319,6 +320,7 @@ router.delete('/:id', requireAdmin, (req, res) => {
 
   updateRanks(team.game);
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.json({ success: true, message: `Team "${team.team_name}" soft-deleted successfully.` });
 });
@@ -341,6 +343,7 @@ router.put('/:id/restore', requireAdmin, (req, res) => {
 
   updateRanks(team.game);
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.json({ success: true, message: `Team "${restoredName}" restored successfully.` });
 });
@@ -355,6 +358,7 @@ router.delete('/admin/clear-all', requireAdmin, (req, res) => {
   updateRanks('brain');
   updateRanks('pictionary');
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.json({ success: true, message: 'All teams and answers have been completely cleared.' });
 });
@@ -422,6 +426,7 @@ router.post('/import', requireAdmin, (req, res) => {
   updateRanks('brain');
   updateRanks('pictionary');
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.json({
     success: true,
@@ -650,6 +655,7 @@ export async function executeSyncGoogleSheet(sheetUrl, apiKey, previewOnly = fal
     updateRanks('brain');
     updateRanks('pictionary');
     broadcastScoreboard();
+    savePersistentTeamsBackup();
   }
 
   return {
@@ -841,6 +847,7 @@ router.post('/webhook', (req, res) => {
 
   updateRanks(game);
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.status(201).json({
     success: true,
@@ -916,6 +923,7 @@ router.post('/sync-push', (req, res) => {
   updateRanks('brain');
   updateRanks('pictionary');
   broadcastScoreboard();
+  savePersistentTeamsBackup();
 
   return res.json({ success: true, message: `Successfully synced ${count} teams!`, count });
 });

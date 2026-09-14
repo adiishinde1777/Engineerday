@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { savePersistentTeamsBackup } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +63,7 @@ export async function upsertTeamToMySQL(team) {
   if (!pool || !team) return;
   try {
     const rankNum = team.rank !== undefined ? Number(team.rank) : (team.rank_num !== undefined ? Number(team.rank_num) : 0);
+    const isDel = team.is_deleted ? 1 : 0;
     const sql = `
       INSERT INTO teams (
         id, team_name, game, captain, member1, member2, member3, contact,
@@ -100,7 +102,7 @@ export async function upsertTeamToMySQL(team) {
       rankNum,
       team.status || 'REGISTERED',
       team.is_seed ? 1 : 0,
-      team.is_deleted ? 1 : 0,
+      isDel,
       team.deleted_at || null,
       team.created_at || new Date().toISOString()
     ]);
@@ -113,9 +115,10 @@ let isSyncInProgress = false;
 
 /**
  * Bidirectional Synchronizer:
- * 1. Reads all teams from MySQL and syncs any new/updated teams into SQLite.
+ * 1. Reads all active teams from MySQL and syncs any new/updated teams into SQLite.
  * 2. Checks if SQLite has any teams not yet in MySQL, and writes them into MySQL.
- * 3. Recalculates ranks and broadcasts scoreboard if changes occurred.
+ * 3. Never deletes or marks active registrations as deleted.
+ * 4. Backs up all teams to server/data/persistent_teams.json.
  */
 export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRanksFunc = null) {
   if (!pool || isSyncInProgress) return;
@@ -138,7 +141,6 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
     const sqMap = new Map();
     sqRows.forEach(r => {
       sqMap.set(r.id, r);
-      // also map lowercased name for deduplication
       if (r.team_name) {
         sqMap.set(`name:${r.team_name.toLowerCase()}`, r);
       }
@@ -179,7 +181,7 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
       const existing = sqMap.get(m.id) || (m.team_name ? sqMap.get(`name:${m.team_name.toLowerCase()}`) : null);
 
       if (!existing) {
-        // New team added directly in MySQL! Save into SQLite
+        // If MySQL has a team not in SQLite, insert it
         insertSQLite.run(
           m.id,
           m.team_name,
@@ -201,7 +203,12 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
         );
         hasChanges = true;
       } else {
-        // Team exists in both. Check if MySQL has updated values
+        // Team exists in both.
+        // CRITICAL PROTECTION: An active team in SQLite (is_deleted = 0) must NEVER be auto-deleted by background sync
+        const targetDeleted = (existing.is_deleted === 0 || !existing.is_deleted) && m.is_deleted === 1
+          ? 0 // Protect active SQLite team from deletion!
+          : (m.is_deleted ? 1 : 0);
+
         const diff =
           existing.team_name !== m.team_name ||
           existing.game !== m.game ||
@@ -214,8 +221,7 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
           existing.score !== m.score ||
           existing.rank !== m.rank_num ||
           existing.status !== m.status ||
-          (existing.is_deleted ? 1 : 0) !== (m.is_deleted ? 1 : 0) ||
-          existing.deleted_at !== m.deleted_at;
+          (existing.is_deleted ? 1 : 0) !== targetDeleted;
 
         if (diff) {
           updateSQLite.run(
@@ -232,11 +238,16 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
             m.rank_num,
             m.status,
             m.is_seed ? 1 : 0,
-            m.is_deleted ? 1 : 0,
-            m.deleted_at || null,
+            targetDeleted,
+            targetDeleted ? m.deleted_at : null,
             existing.id
           );
           hasChanges = true;
+        }
+
+        // If SQLite has an active team but MySQL had is_deleted=1, also restore it in MySQL
+        if ((existing.is_deleted === 0 || !existing.is_deleted) && m.is_deleted === 1) {
+          await upsertTeamToMySQL(existing);
         }
       }
     }
@@ -248,6 +259,9 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
         await upsertTeamToMySQL(sq);
       }
     }
+
+    // Save active teams to persistent JSON backup file
+    savePersistentTeamsBackup();
 
     // If changes were detected, update leaderboard ranks and broadcast live
     if (hasChanges) {
@@ -261,7 +275,6 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
       console.log('🔄 [MySQL Sync] Successfully synchronized teams between MySQL and website SQLite!');
     }
   } catch (err) {
-    // Non-blocking log
     if (isConnected) {
       console.warn('[MySQL Sync Run Note]:', err.message);
     }

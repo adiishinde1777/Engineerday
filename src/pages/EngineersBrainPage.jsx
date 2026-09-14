@@ -124,16 +124,28 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   const { session } = brainSession;
   const currentRoundNum = session?.round || 1;
   const isTimeUp = session?.status === 'TIME_UP';
-  const isRunning = session?.status === 'RUNNING' && !isTimeUp;
+  const isStopped = session?.status === 'STOPPED' || session?.status === 'PAUSED' || Boolean(session?.is_paused && session?.status !== 'TIME_UP');
+  const isRunning = session?.status === 'RUNNING' && !isTimeUp && !isStopped;
 
-  // Initial fetch of questions for this round: ONLY when game is RUNNING or admin is viewing
+  // Helper to jump to first remaining (unanswered) question in this round
+  const jumpToFirstRemainingQuestion = (questionsList, answersMapObj) => {
+    if (!Array.isArray(questionsList) || questionsList.length === 0) return;
+    const unansweredIdx = questionsList.findIndex(q => !answersMapObj[q.id]);
+    if (unansweredIdx !== -1) {
+      setCurrentQIndex(unansweredIdx);
+    }
+  };
+
+  // Initial fetch of questions for this round: ONLY when game is RUNNING, STOPPED (for standby preview if allowed), or admin is viewing
   useEffect(() => {
     if (isRunning || isAuthenticated) {
       fetchRoundQuestions(currentRoundNum);
+    } else if (isStopped) {
+      // Keep round questions in memory if already fetched so progress breakdown shows
     } else {
       setRoundQuestions([]);
     }
-  }, [isRunning, isAuthenticated, currentRoundNum]);
+  }, [isRunning, isStopped, isAuthenticated, currentRoundNum]);
 
   // Fetch team details whenever selectedTeamId changes
   useEffect(() => {
@@ -141,6 +153,19 @@ export default function EngineersBrainPage({ setCurrentPage }) {
       fetchTeamDetails(selectedTeamId);
     }
   }, [selectedTeamId]);
+
+  // When answeredMap updates, ensure squad is on an unanswered question if current is answered
+  useEffect(() => {
+    if (roundQuestions.length > 0 && Object.keys(answeredMap).length > 0) {
+      const activeQ = roundQuestions[currentQIndex];
+      if (activeQ && answeredMap[activeQ.id]) {
+        const firstUnanswered = roundQuestions.findIndex(q => !answeredMap[q.id]);
+        if (firstUnanswered !== -1) {
+          setCurrentQIndex(firstUnanswered);
+        }
+      }
+    }
+  }, [answeredMap, roundQuestions.length]);
 
   // Inform admin in real-time which question this squad is currently viewing
   useEffect(() => {
@@ -169,7 +194,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
     setResult(null);
   }, [currentQIndex]);
 
-  // Listen to socket events for round finished, scoreboard update, etc.
+  // Listen to socket events for round finished, round stopped, round resumed, scoreboard update, etc.
   useEffect(() => {
     if (!socket) return;
 
@@ -179,16 +204,34 @@ export default function EngineersBrainPage({ setCurrentPage }) {
       }
     };
 
+    const handleRoundStopped = () => {
+      if (selectedTeamId) {
+        fetchTeamDetails(selectedTeamId);
+      }
+    };
+
+    const handleRoundResumed = () => {
+      if (selectedTeamId) {
+        fetchTeamDetails(selectedTeamId);
+      }
+      fetchRoundQuestions(currentRoundNum);
+      sound.playCountdown();
+    };
+
     socket.on('brain_round_finished', handleRoundFinished);
     socket.on('scoreboard_updated', handleRoundFinished);
     socket.on('time_up', handleRoundFinished);
+    socket.on('round_stopped', handleRoundStopped);
+    socket.on('round_resumed', handleRoundResumed);
 
     return () => {
       socket.off('brain_round_finished', handleRoundFinished);
       socket.off('scoreboard_updated', handleRoundFinished);
       socket.off('time_up', handleRoundFinished);
+      socket.off('round_stopped', handleRoundStopped);
+      socket.off('round_resumed', handleRoundResumed);
     };
-  }, [socket, selectedTeamId]);
+  }, [socket, selectedTeamId, currentRoundNum]);
 
   // Currently displayed question
   const activeQuestion = roundQuestions[currentQIndex] || brainSession?.question || null;
@@ -509,11 +552,13 @@ export default function EngineersBrainPage({ setCurrentPage }) {
               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black uppercase tracking-wider ${
                 isRunning 
                   ? 'bg-emerald-500 text-slate-950 animate-pulse' 
-                  : isTimeUp
-                    ? 'bg-rose-500 text-white'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : isStopped
+                    ? 'bg-amber-500 text-slate-950 animate-pulse'
+                    : isTimeUp
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               }`}>
-                {isRunning ? `● ROUND ${currentRoundNum} LIVE` : isTimeUp ? `ROUND ${currentRoundNum} COMPLETED` : '🔒 STANDBY • WAITING FOR ADMIN'}
+                {isRunning ? `● ROUND ${currentRoundNum} LIVE` : isStopped ? `⏸ ROUND ${currentRoundNum} STOPPED` : isTimeUp ? `ROUND ${currentRoundNum} COMPLETED` : '🔒 STANDBY • WAITING FOR ADMIN'}
               </span>
             </div>
             <p className="text-xs font-mono text-slate-400">
@@ -699,6 +744,9 @@ export default function EngineersBrainPage({ setCurrentPage }) {
               <span className="text-cyan-300">
                 Answered: <strong>{answeredQuestionsCount} / {roundQuestions.length}</strong>
               </span>
+              <span className="text-amber-300 font-bold">
+                Remaining: <strong>{Math.max(0, roundQuestions.length - answeredQuestionsCount)}</strong>
+              </span>
 
               {/* FINISH ROUND BUTTON: Shown when squad answers all questions or wants to submit */}
               {allQuestionsAnswered && !isTimeUp && (
@@ -757,112 +805,217 @@ export default function EngineersBrainPage({ setCurrentPage }) {
         </div>
       )}
 
-      {/* MAIN QUESTION ARENA CARD / SECURE HOLDING SCREEN */}
-      {!isRunning ? (
-        !isTimeUp && (
-          <div className="glass-card p-8 sm:p-14 rounded-3xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 text-center space-y-8 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
-            {/* Ambient background glow */}
-            <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            {/* Radar / Pulsing Lock Icon */}
-            <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 rounded-3xl bg-cyan-500/20 border-2 border-cyan-500/40 animate-ping opacity-40"></div>
-              <div className="relative w-24 h-24 rounded-3xl bg-slate-950 border-2 border-cyan-400 flex items-center justify-center text-cyan-400 shadow-xl shadow-cyan-500/20">
-                <Lock className="w-10 h-10 animate-pulse" />
-              </div>
-            </div>
+      {/* 1. DEDICATED STOPPED / PAUSED STATE SCREEN (When Admin stops the round) */}
+      {isStopped && !isTimeUp && (
+        <div className="glass-card p-8 sm:p-14 rounded-3xl border-2 border-amber-500/50 bg-gradient-to-br from-slate-900 via-amber-950/20 to-slate-950 text-center space-y-8 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
+          <div className="absolute -top-24 -left-24 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            {/* Title & Advisory */}
-            <div className="space-y-3 max-w-xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold tracking-wider uppercase">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>GAME LOCKED • STANDBY FOR ADMIN</span>
-              </div>
-              <h2 className="text-2xl sm:text-4xl font-black text-white font-heading">
-                Round {currentRoundNum} Questions are Locked
-              </h2>
-              <p className="text-sm text-slate-300 leading-relaxed font-sans">
-                स्पर्धेची पारदर्शकता राखण्यासाठी Coordinator / Admin ने गेम Start करेपर्यंत सर्व प्रश्न सुरक्षितपणे लॉक ठेवण्यात आले आहेत. Admin ने गेम सुरू करताच प्रश्न आपोआप स्क्रीनवर दिसतील.
-              </p>
-              <p className="text-xs text-slate-400 font-mono">
-                (Questions and options will unlock automatically in real-time as soon as the admin starts the round from the control console.)
-              </p>
-            </div>
-
-            {/* Squad Readiness Card */}
-            <div className="max-w-md mx-auto p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono text-slate-400 block uppercase">Active Squad</span>
-                  <strong className="text-sm text-white font-heading truncate block max-w-[200px]">
-                    {selectedTeam?.team_name || 'Verified Squad'}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-950 border border-emerald-500/40 text-emerald-300 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Ready on Stage</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Event Rules Mini Badges */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto text-xs font-mono text-slate-300">
-              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
-                <Zap className="w-4 h-4 text-cyan-400 shrink-0" />
-                <span>6 Technical Qs</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Speed Bonus Points</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
-                <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Live Leaderboard</span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setCurrentPage('live-dashboard')}
-                className="px-5 py-2.5 rounded-xl text-xs font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 hover:bg-cyan-900 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>View Live Scoreboard</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrentPage('games')}
-                className="px-5 py-2.5 rounded-xl text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Back to Games Rules</span>
-              </button>
+          {/* Pulsing Pause / Standby Icon */}
+          <div className="relative mx-auto w-24 h-24">
+            <div className="absolute inset-0 rounded-3xl bg-amber-500/20 border-2 border-amber-500/40 animate-ping opacity-40"></div>
+            <div className="relative w-24 h-24 rounded-3xl bg-slate-950 border-2 border-amber-400 flex items-center justify-center text-amber-400 shadow-xl shadow-amber-500/20">
+              <Clock className="w-10 h-10 animate-pulse" />
             </div>
           </div>
-        )
-      ) : !activeQuestion ? (
-        <div className="glass-card p-12 sm:p-20 rounded-3xl border border-slate-800 text-center space-y-4 animate-pulse">
-          <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-cyan-400">
-            <Brain className="w-8 h-8 animate-spin" />
+
+          <div className="space-y-3 max-w-xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs font-mono font-bold tracking-wider uppercase">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              <span>ROUND {currentRoundNum} TEMPORARILY STOPPED BY ADMIN</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-black text-white font-heading">
+              Round Questions Paused
+            </h2>
+            <p className="text-sm text-slate-300 leading-relaxed font-sans">
+              Coordinator / Admin ने गेमचे प्रश्न तात्पुरते थांबवले आहेत (Round Stopped). Admin ने पुन्हा सुरू (Resume) करताच तुमचे उर्वरित प्रश्न आपोआप स्क्रीनवर सुरू होतील.
+            </p>
+            <p className="text-xs text-slate-400 font-mono">
+              (Please stay on this screen. As soon as the Admin resumes the round, your remaining questions will automatically unlock in real-time.)
+            </p>
           </div>
-          <h3 className="text-2xl font-bold text-white font-heading">
-            Loading Round {currentRoundNum} Questions...
-          </h3>
-          <p className="text-sm text-slate-400 max-w-md mx-auto">
-            Syncing questions from the symposium server. Get ready!
-          </p>
+
+          {/* Progress Summary Box */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/30 text-center space-y-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Questions Completed</span>
+              <div className="text-2xl sm:text-3xl font-black text-emerald-300 font-mono">
+                {answeredQuestionsCount} / {roundQuestions.length || 6}
+              </div>
+              <p className="text-[10px] font-mono text-emerald-400/80">Submitted Answers</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-center space-y-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Remaining Questions</span>
+              <div className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
+                {Math.max(0, (roundQuestions.length || 6) - answeredQuestionsCount)}
+              </div>
+              <p className="text-[10px] font-mono text-amber-400/80">Will resume shortly</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-500/30 text-center space-y-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Round Points</span>
+              <div className="text-2xl sm:text-3xl font-black text-cyan-300 font-mono">
+                +{totalRoundPointsEarned} <span className="text-xs font-normal text-slate-400">Pts</span>
+              </div>
+              <p className="text-[10px] font-mono text-cyan-400/80">Earned So Far</p>
+            </div>
+          </div>
+
+          {/* Squad Status Pill */}
+          <div className="max-w-md mx-auto p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-mono text-slate-400 block uppercase">Active Squad</span>
+                <strong className="text-sm text-white font-heading truncate block max-w-[200px]">
+                  {selectedTeam?.team_name || 'Verified Squad'}
+                </strong>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-950 border border-amber-500/40 text-amber-300 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span>Standby for Resume</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage('live-dashboard')}
+              className="px-5 py-2.5 rounded-xl text-xs font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 hover:bg-cyan-900 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>View Live Scoreboard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedTeamId) fetchTeamDetails(selectedTeamId);
+              }}
+              className="px-5 py-2.5 rounded-xl text-xs font-mono text-slate-300 bg-slate-900 border border-slate-800 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh Status</span>
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="glass-card p-6 sm:p-10 rounded-3xl border border-cyan-500/30 bg-slate-900/90 relative overflow-hidden space-y-8">
+      )}
+
+      {/* 2. INITIAL SECURE HOLDING SCREEN (When game has not started yet) */}
+      {!isRunning && !isStopped && !isTimeUp && (
+        <div className="glass-card p-8 sm:p-14 rounded-3xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 text-center space-y-8 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
+          {/* Ambient background glow */}
+          <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+          {/* Radar / Pulsing Lock Icon */}
+          <div className="relative mx-auto w-24 h-24">
+            <div className="absolute inset-0 rounded-3xl bg-cyan-500/20 border-2 border-cyan-500/40 animate-ping opacity-40"></div>
+            <div className="relative w-24 h-24 rounded-3xl bg-slate-950 border-2 border-cyan-400 flex items-center justify-center text-cyan-400 shadow-xl shadow-cyan-500/20">
+              <Lock className="w-10 h-10 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Title & Advisory */}
+          <div className="space-y-3 max-w-xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold tracking-wider uppercase">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              <span>GAME LOCKED • STANDBY FOR ADMIN</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-black text-white font-heading">
+              Round {currentRoundNum} Questions are Locked
+            </h2>
+            <p className="text-sm text-slate-300 leading-relaxed font-sans">
+              स्पर्धेची पारदर्शकता राखण्यासाठी Coordinator / Admin ने गेम Start करेपर्यंत सर्व प्रश्न सुरक्षितपणे लॉक ठेवण्यात आले आहेत. Admin ने गेम सुरू करताच प्रश्न आपोआप स्क्रीनवर दिसतील.
+            </p>
+            <p className="text-xs text-slate-400 font-mono">
+              (Questions and options will unlock automatically in real-time as soon as the admin starts the round from the control console.)
+            </p>
+          </div>
+
+          {/* Squad Readiness Card */}
+          <div className="max-w-md mx-auto p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-mono text-slate-400 block uppercase">Active Squad</span>
+                <strong className="text-sm text-white font-heading truncate block max-w-[200px]">
+                  {selectedTeam?.team_name || 'Verified Squad'}
+                </strong>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-950 border border-emerald-500/40 text-emerald-300 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Ready on Stage</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Event Rules Mini Badges */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto text-xs font-mono text-slate-300">
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
+              <Zap className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>6 Technical Qs</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Speed Bonus Points</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
+              <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Live Leaderboard</span>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage('live-dashboard')}
+              className="px-5 py-2.5 rounded-xl text-xs font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 hover:bg-cyan-900 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>View Live Scoreboard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage('games')}
+              className="px-5 py-2.5 rounded-xl text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Back to Games Rules</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 3. QUESTION DISPLAY / PLAYING SCREEN */}
+      {isRunning && (
+        !activeQuestion ? (
+          <div className="glass-card p-12 sm:p-20 rounded-3xl border border-slate-800 text-center space-y-4 animate-pulse">
+            <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-cyan-400">
+              <Brain className="w-8 h-8 animate-spin" />
+            </div>
+            <h3 className="text-2xl font-bold text-white font-heading">
+              Loading Round {currentRoundNum} Questions...
+            </h3>
+            <p className="text-sm text-slate-400 max-w-md mx-auto">
+              Syncing questions from the symposium server. Get ready!
+            </p>
+          </div>
+        ) : (
+          <div className="glass-card p-6 sm:p-10 rounded-3xl border border-cyan-500/30 bg-slate-900/90 relative overflow-hidden space-y-8">
 
           
           {/* Top Bar inside Card: Question Number & Points Info */}
@@ -1120,7 +1273,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
           </div>
 
         </div>
-      )}
+      ))}
 
     </div>
   );

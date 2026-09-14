@@ -176,20 +176,24 @@ export function pauseServerTimer(game) {
   }
   db.prepare(`
     UPDATE game_sessions 
-    SET is_paused = 1, status = 'PAUSED'
+    SET is_paused = 1, status = 'STOPPED'
     WHERE game = ?
   `).run(game);
   broadcastSessionState(game);
   if (ioInstance) {
     ioInstance.to(`game_${game}`).emit('timer_paused', { game });
+    ioInstance.to(`game_${game}`).emit('round_stopped', { game });
+    ioInstance.emit('round_stopped', { game });
   }
 }
 
 export function resumeServerTimer(game) {
   const session = db.prepare('SELECT timer_remaining FROM game_sessions WHERE game = ?').get(game);
-  const remaining = session ? session.timer_remaining : 30;
-  if (remaining > 0) {
-    startServerTimer(game, remaining);
+  const remaining = session && session.timer_remaining > 0 ? session.timer_remaining : 30;
+  startServerTimer(game, remaining);
+  if (ioInstance) {
+    ioInstance.to(`game_${game}`).emit('round_resumed', { game });
+    ioInstance.emit('round_resumed', { game });
   }
 }
 
