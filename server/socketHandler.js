@@ -69,7 +69,7 @@ export function setupSocketIO(io) {
 export function broadcastScoreboard() {
   if (!ioInstance) return;
   try {
-    const teams = db.prepare('SELECT * FROM teams ORDER BY score DESC, rank ASC').all();
+    const teams = db.prepare('SELECT * FROM teams WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY score DESC, rank ASC').all();
     ioInstance.emit('scoreboard_updated', teams);
   } catch (err) {
     console.error('Error broadcasting scoreboard:', err);

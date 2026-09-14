@@ -9,9 +9,13 @@ const router = express.Router();
 
 // GET all teams (Public / Admin)
 router.get('/', (req, res) => {
-  const { game, status, registration_status, search } = req.query;
+  const { game, status, registration_status, search, include_deleted } = req.query;
   let sql = 'SELECT * FROM teams WHERE 1=1';
   const params = [];
+
+  if (include_deleted !== 'true') {
+    sql += ' AND (is_deleted = 0 OR is_deleted IS NULL)';
+  }
 
   if (game && game !== 'all') {
     sql += " AND (game = ? OR game = 'both')";
@@ -68,13 +72,12 @@ router.put('/google-api-config', requireAdmin, (req, res) => {
   return res.json({ success: true, message: 'Google API & Form settings saved successfully' });
 });
 
-// Clear Seed/Demo Teams (Admin)
+// DELETE all seed teams (Admin - Soft Delete)
 router.delete('/seed/clear', requireAdmin, (req, res) => {
-  const seedTeams = db.prepare('SELECT id, game FROM teams WHERE is_seed = 1').all();
-  seedTeams.forEach(t => {
-    db.prepare('DELETE FROM answers WHERE team_id = ?').run(t.id);
-  });
-  db.prepare('DELETE FROM teams WHERE is_seed = 1').run();
+  const seedTeams = db.prepare('SELECT id, game FROM teams WHERE is_seed = 1 AND (is_deleted = 0 OR is_deleted IS NULL)').all();
+  const now = new Date().toISOString();
+  db.prepare('UPDATE teams SET is_deleted = 1, deleted_at = ? WHERE is_seed = 1').run(now);
+  syncToMySQL('UPDATE teams SET is_deleted = 1, deleted_at = ? WHERE is_seed = 1', [now]);
   updateRanks('brain');
   updateRanks('pictionary');
   broadcastScoreboard();
@@ -83,7 +86,7 @@ router.delete('/seed/clear', requireAdmin, (req, res) => {
 
 // GET single team profile with answers & breakdown
 router.get('/:id', (req, res) => {
-  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.id);
+  const team = db.prepare('SELECT * FROM teams WHERE id = ? AND (is_deleted = 0 OR is_deleted IS NULL)').get(req.params.id);
   if (!team) {
     return res.status(404).json({ success: false, message: 'Team not found' });
   }
@@ -140,7 +143,7 @@ router.post('/', (req, res) => {
     });
   }
 
-  const existing = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?)').get(team_name);
+  const existing = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?) AND (is_deleted = 0 OR is_deleted IS NULL)').get(team_name);
   if (existing) {
     return res.status(400).json({ success: false, message: `Team name "${team_name}" already exists!` });
   }
@@ -194,10 +197,13 @@ router.post('/verify', (req, res) => {
 
   const team = db.prepare(`
     SELECT * FROM teams
-    WHERE lower(team_name) = lower(?)
-       OR contact = ?
-       OR (length(?) >= 10 AND replace(replace(replace(contact, ' ', ''), '-', ''), '+91', '') = ?)
-       OR lower(captain) = lower(?)
+    WHERE (is_deleted = 0 OR is_deleted IS NULL)
+      AND (
+        lower(team_name) = lower(?)
+        OR contact = ?
+        OR (length(?) >= 10 AND replace(replace(replace(contact, ' ', ''), '-', ''), '+91', '') = ?)
+        OR lower(captain) = lower(?)
+      )
     ORDER BY created_at DESC LIMIT 1
   `).get(clean, clean, cleanPhone, cleanPhone.slice(-10), clean);
 
@@ -279,20 +285,60 @@ router.put('/:id', requireAdmin, (req, res) => {
   return res.json({ success: true, message: 'Team updated successfully' });
 });
 
-// DELETE team (Admin)
+// DELETE team (Admin - Soft Delete)
 router.delete('/:id', requireAdmin, (req, res) => {
   const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.id);
   if (!team) {
     return res.status(404).json({ success: false, message: 'Team not found' });
   }
 
-  db.prepare('DELETE FROM answers WHERE team_id = ?').run(req.params.id);
-  db.prepare('DELETE FROM teams WHERE id = ?').run(req.params.id);
+  const now = new Date().toISOString();
+  // Append [DELETED-xxx] to free up team_name so the name can be re-used without UNIQUE constraint violations
+  const safeDeletedName = `${team.team_name} [DELETED-${Date.now().toString(36)}]`;
+
+  db.prepare('UPDATE teams SET is_deleted = 1, deleted_at = ?, team_name = ? WHERE id = ?').run(now, safeDeletedName, req.params.id);
+  syncToMySQL('UPDATE teams SET is_deleted = 1, deleted_at = ?, team_name = ? WHERE id = ?', [now, safeDeletedName, req.params.id]);
 
   updateRanks(team.game);
   broadcastScoreboard();
 
-  return res.json({ success: true, message: 'Team deleted successfully' });
+  return res.json({ success: true, message: `Team "${team.team_name}" soft-deleted successfully.` });
+});
+
+// RESTORE team (Admin)
+router.put('/:id/restore', requireAdmin, (req, res) => {
+  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.id);
+  if (!team) {
+    return res.status(404).json({ success: false, message: 'Team not found' });
+  }
+
+  const restoredName = team.team_name.replace(/\s*\[DELETED-[a-z0-9]+\]$/i, '');
+  const duplicate = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?) AND (is_deleted = 0 OR is_deleted IS NULL) AND id != ?').get(restoredName, req.params.id);
+  if (duplicate) {
+    return res.status(400).json({ success: false, message: `Cannot restore: an active team with name "${restoredName}" already exists!` });
+  }
+
+  db.prepare('UPDATE teams SET is_deleted = 0, deleted_at = NULL, team_name = ? WHERE id = ?').run(restoredName, req.params.id);
+  syncToMySQL('UPDATE teams SET is_deleted = 0, deleted_at = NULL, team_name = ? WHERE id = ?', [restoredName, req.params.id]);
+
+  updateRanks(team.game);
+  broadcastScoreboard();
+
+  return res.json({ success: true, message: `Team "${restoredName}" restored successfully.` });
+});
+
+// HARD DELETE / CLEAR ALL TEAMS (Admin - Clean tournament roster)
+router.delete('/admin/clear-all', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM answers').run();
+  db.prepare('DELETE FROM teams').run();
+  syncToMySQL('DELETE FROM answers');
+  syncToMySQL('DELETE FROM teams');
+
+  updateRanks('brain');
+  updateRanks('pictionary');
+  broadcastScoreboard();
+
+  return res.json({ success: true, message: 'All teams and answers have been completely cleared.' });
 });
 
 // Bulk Import from CSV / JSON (Admin)
@@ -326,7 +372,7 @@ router.post('/import', requireAdmin, (req, res) => {
       return;
     }
 
-    const exists = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?)').get(name.trim());
+    const exists = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?) AND (is_deleted = 0 OR is_deleted IS NULL)').get(name.trim());
     if (exists) {
       duplicates.push(name);
       return;
@@ -534,7 +580,7 @@ export async function executeSyncGoogleSheet(sheetUrl, apiKey, previewOnly = fal
   const importedTeams = [];
 
   parsedTeams.forEach(t => {
-    const exists = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?)').get(t.team_name);
+    const exists = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?) AND (is_deleted = 0 OR is_deleted IS NULL)').get(t.team_name);
     if (exists) {
       duplicateCount++;
       return;
@@ -686,7 +732,7 @@ router.post('/webhook', (req, res) => {
   }
 
   const cleanName = String(teamName).trim();
-  const existing = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?)').get(cleanName);
+  const existing = db.prepare('SELECT id FROM teams WHERE lower(team_name) = lower(?) AND (is_deleted = 0 OR is_deleted IS NULL)').get(cleanName);
   if (existing) {
     return res.status(200).json({
       success: true,

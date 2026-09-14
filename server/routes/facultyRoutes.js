@@ -28,7 +28,7 @@ const router = express.Router();
 
 // GET all faculty
 router.get('/', (req, res) => {
-  const faculty = db.prepare('SELECT * FROM faculty ORDER BY order_index ASC, is_hod DESC, id ASC').all();
+  const faculty = db.prepare('SELECT * FROM faculty WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY order_index ASC, is_hod DESC, id ASC').all();
   return res.json({ success: true, count: faculty.length, faculty });
 });
 
@@ -135,14 +135,16 @@ router.put('/:id', requireAdmin, (req, res) => {
   return res.json({ success: true, message: 'Faculty member updated successfully' });
 });
 
-// DELETE faculty (Admin)
+// DELETE faculty (Admin - Soft Delete)
 router.delete('/:id', requireAdmin, (req, res) => {
   const existing = db.prepare('SELECT id FROM faculty WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ success: false, message: 'Faculty member not found' });
   }
-  db.prepare('DELETE FROM faculty WHERE id = ?').run(req.params.id);
-  return res.json({ success: true, message: 'Faculty member removed successfully' });
+  const now = new Date().toISOString();
+  db.prepare('UPDATE faculty SET is_deleted = 1, deleted_at = ? WHERE id = ?').run(now, req.params.id);
+  syncToMySQL('UPDATE faculty SET is_deleted = 1, deleted_at = ? WHERE id = ?', [now, req.params.id]);
+  return res.json({ success: true, message: 'Faculty member soft-deleted successfully' });
 });
 
 export default router;

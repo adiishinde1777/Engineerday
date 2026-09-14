@@ -91,6 +91,26 @@ export function initDB() {
     db.exec('ALTER TABLE teams ADD COLUMN password_hash TEXT;');
   } catch {}
 
+  // Soft delete columns
+  try {
+    db.exec('ALTER TABLE teams ADD COLUMN is_deleted INTEGER DEFAULT 0;');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE teams ADD COLUMN deleted_at TEXT;');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE faculty ADD COLUMN is_deleted INTEGER DEFAULT 0;');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE faculty ADD COLUMN deleted_at TEXT;');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE questions ADD COLUMN is_deleted INTEGER DEFAULT 0;');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE questions ADD COLUMN deleted_at TEXT;');
+  } catch {}
+
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS questions (
@@ -370,88 +390,7 @@ function seedDefaultData() {
     }
   }
 
-  // Seed registered teams if teams table is empty
-  const teamCheck = db.prepare('SELECT count(*) as count FROM teams').get();
-  if (!teamCheck || teamCheck.count === 0) {
-    const insertTeam = db.prepare(`
-      INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, registration_status, score, rank, status, is_seed, created_at, password_hash)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const initialTeams = [
-      {
-        id: 'team-1789307895945-vbipf',
-        team_name: 'Titan Squad 5876',
-        game: 'brain',
-        captain: 'Rohan Sharma',
-        member1: 'Rohan Sharma',
-        member2: 'Amit Patil',
-        member3: 'Priya Joshi',
-        contact: '9822334455',
-        registration_status: 'VERIFIED',
-        score: 0,
-        rank: 1,
-        status: 'COMPLETED',
-        is_seed: 0,
-        created_at: '2026-09-13T13:58:16.022Z',
-        password_hash: '$2b$10$g7kkqt4ZB4NBTxQKz/ZbReJfS3YVjBYeunqt1m2e2PjLxIMbvfPD.'
-      },
-      {
-        id: 'team-1789317827935-9nw6s',
-        team_name: 'MySQL Titans 7866',
-        game: 'brain',
-        captain: 'Aditya Shinde',
-        member1: 'Aditya Shinde',
-        member2: 'Sameer Kulkarni',
-        member3: 'Neha Sharma',
-        contact: '9988776655',
-        registration_status: 'VERIFIED',
-        score: 0,
-        rank: 2,
-        status: 'COMPLETED',
-        is_seed: 0,
-        created_at: '2026-09-13T16:43:48.017Z',
-        password_hash: '$2b$10$Ztd/e5C.QOzGuLbS9nz9aeIlC7vq3kDCJjXhdUD5Nz1Khj9F3AgBK'
-      },
-      {
-        id: 'team-1789318112880-fmkcm',
-        team_name: 'New Team 1',
-        game: 'brain',
-        captain: 'Captian',
-        member1: 'Captian',
-        member2: 'Member 2',
-        member3: 'Member 3',
-        contact: '1234567890',
-        registration_status: 'VERIFIED',
-        score: 0,
-        rank: 3,
-        status: 'COMPLETED',
-        is_seed: 0,
-        created_at: '2026-09-13T16:48:32.999Z',
-        password_hash: '$2b$10$iZ1dTf8iZ9JKPxGXp6uPxeZ46XWS.2lAb5MtgxkY7L/VtIm8G0NYK'
-      },
-      {
-        id: 'team-1789319321932-3g4j0',
-        team_name: 'Dual Force 1831',
-        game: 'brain',
-        captain: 'Ananya Sharma',
-        member1: 'Ananya Sharma',
-        member2: 'Vivek Joshi',
-        member3: 'Pooja Patil',
-        contact: '9988112233',
-        registration_status: 'VERIFIED',
-        score: 0,
-        rank: 4,
-        status: 'COMPLETED',
-        is_seed: 0,
-        created_at: '2026-09-13T17:08:42.148Z',
-        password_hash: '$2b$10$pebwjGSRB4MLeR6mEW2QnOsFlJ3UaNURIt4vuDVPMAprLeEqXvsdu'
-      }
-    ];
-    for (const t of initialTeams) {
-      insertTeam.run(t.id, t.team_name, t.game, t.captain, t.member1, t.member2, t.member3, t.contact, t.registration_status, t.score, t.rank, t.status, t.is_seed, t.created_at, t.password_hash);
-    }
-    console.log('[DB] Initial teams seeded successfully.');
-  }
+  // Teams table starts clean: Teams are created when users register or admin adds them
 
 
   // Seed Questions for Engineer's Brain & Engineering Pictionary
@@ -670,7 +609,7 @@ export function updateRanks(game) {
         (SELECT count(*) FROM answers WHERE team_id = teams.id AND is_correct = 1) as correct_count,
         (SELECT coalesce(sum(response_time), 9999) FROM answers WHERE team_id = teams.id) as total_time
       FROM teams 
-      WHERE game = ? OR game = 'both'
+      WHERE (game = ? OR game = 'both') AND (is_deleted = 0 OR is_deleted IS NULL)
       ORDER BY score DESC, correct_count DESC, total_time ASC
     `).all(game);
 

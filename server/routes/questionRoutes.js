@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../db.js';
 import { requireAdmin, checkIsAdmin } from '../auth.js';
+import { syncToMySQL } from '../mysqlSync.js';
 
 const router = express.Router();
 
@@ -24,7 +25,7 @@ router.get('/', (req, res) => {
     }
   }
 
-  let sql = 'SELECT * FROM questions WHERE 1=1';
+  let sql = 'SELECT * FROM questions WHERE (is_deleted = 0 OR is_deleted IS NULL)';
   const params = [];
 
   if (game && game !== 'all') {
@@ -164,14 +165,16 @@ router.put('/:id', requireAdmin, (req, res) => {
   return res.json({ success: true, message: 'Question updated successfully' });
 });
 
-// DELETE question (Admin)
+// DELETE question (Admin - Soft Delete)
 router.delete('/:id', requireAdmin, (req, res) => {
   const existing = db.prepare('SELECT id FROM questions WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ success: false, message: 'Question not found' });
   }
-  db.prepare('DELETE FROM questions WHERE id = ?').run(req.params.id);
-  return res.json({ success: true, message: 'Question deleted successfully' });
+  const now = new Date().toISOString();
+  db.prepare('UPDATE questions SET is_deleted = 1, deleted_at = ? WHERE id = ?').run(now, req.params.id);
+  syncToMySQL('UPDATE questions SET is_deleted = 1, deleted_at = ? WHERE id = ?', [now, req.params.id]);
+  return res.json({ success: true, message: 'Question soft-deleted successfully' });
 });
 
 // Duplicate Question (Admin)

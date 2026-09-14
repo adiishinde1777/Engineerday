@@ -87,6 +87,8 @@ export async function setupMySQL() {
         rank_num INT NOT NULL DEFAULT 0,
         status VARCHAR(32) NOT NULL DEFAULT 'REGISTERED',
         is_seed INT NOT NULL DEFAULT 0,
+        is_deleted INT NOT NULL DEFAULT 0,
+        deleted_at VARCHAR(64),
         created_at VARCHAR(64) NOT NULL
       );
     `);
@@ -101,6 +103,8 @@ export async function setupMySQL() {
         description TEXT,
         position_role VARCHAR(128),
         is_hod INT DEFAULT 0,
+        is_deleted INT NOT NULL DEFAULT 0,
+        deleted_at VARCHAR(64),
         created_at VARCHAR(64) NOT NULL
       );
     `);
@@ -117,9 +121,19 @@ export async function setupMySQL() {
         time_limit INT NOT NULL DEFAULT 30,
         base_points INT NOT NULL DEFAULT 10,
         image_url TEXT,
+        is_deleted INT NOT NULL DEFAULT 0,
+        deleted_at VARCHAR(64),
         created_at VARCHAR(64) NOT NULL
       );
     `);
+
+    // Ensure soft delete columns exist in existing MySQL tables
+    try { await connection.query('ALTER TABLE teams ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch {}
+    try { await connection.query('ALTER TABLE teams ADD COLUMN deleted_at VARCHAR(64);'); } catch {}
+    try { await connection.query('ALTER TABLE faculty ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch {}
+    try { await connection.query('ALTER TABLE faculty ADD COLUMN deleted_at VARCHAR(64);'); } catch {}
+    try { await connection.query('ALTER TABLE questions ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch {}
+    try { await connection.query('ALTER TABLE questions ADD COLUMN deleted_at VARCHAR(64);'); } catch {}
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS game_sessions (

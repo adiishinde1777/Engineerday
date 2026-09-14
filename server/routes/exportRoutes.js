@@ -18,7 +18,7 @@ function toCSV(headers, rows) {
 
 // Export Registrations CSV
 router.get('/registrations', requireAdmin, (req, res) => {
-  const teams = db.prepare('SELECT * FROM teams ORDER BY game ASC, created_at DESC').all();
+  const teams = db.prepare('SELECT * FROM teams WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY game ASC, created_at DESC').all();
   const headers = [
     { label: 'Team Name', key: 'team_name' },
     { label: 'Game', key: 'game' },
@@ -44,6 +44,7 @@ router.get('/scores', requireAdmin, (req, res) => {
     FROM answers a
     JOIN teams t ON a.team_id = t.id
     JOIN questions q ON a.question_id = q.id
+    WHERE (t.is_deleted = 0 OR t.is_deleted IS NULL)
     ORDER BY a.game ASC, a.round ASC, a.created_at ASC
   `).all();
 
@@ -58,7 +59,7 @@ router.get('/scores', requireAdmin, (req, res) => {
     { label: 'Base Points', key: 'base_points' },
     { label: 'Time Bonus', key: 'time_bonus' },
     { label: 'Total Points', key: 'total_points' },
-    { label: 'Timestamp', key: 'created_at' }
+    { label: 'Submitted At', key: 'created_at' }
   ];
 
   const csv = toCSV(headers, answers);
@@ -69,7 +70,7 @@ router.get('/scores', requireAdmin, (req, res) => {
 
 // Export Final Results CSV
 router.get('/results', requireAdmin, (req, res) => {
-  const teams = db.prepare('SELECT * FROM teams ORDER BY game ASC, rank ASC, score DESC').all();
+  const teams = db.prepare('SELECT * FROM teams WHERE (is_deleted = 0 OR is_deleted IS NULL) ORDER BY game ASC, rank ASC, score DESC').all();
   const headers = [
     { label: 'Rank', key: 'rank' },
     { label: 'Team Name', key: 'team_name' },

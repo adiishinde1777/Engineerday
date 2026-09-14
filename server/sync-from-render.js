@@ -33,44 +33,54 @@ export async function syncFromRender() {
     const sqliteDbPath = path.join(__dirname, '..', 'engineers_day.db');
     const db = new DatabaseSync(sqliteDbPath);
 
-    const insertSQLite = db.prepare(`
-      INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank, status, is_seed, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        team_name = excluded.team_name,
-        game = excluded.game,
-        captain = excluded.captain,
-        member1 = excluded.member1,
-        member2 = excluded.member2,
-        member3 = excluded.member3,
-        contact = excluded.contact,
-        password_hash = COALESCE(excluded.password_hash, teams.password_hash),
-        registration_status = excluded.registration_status,
-        score = excluded.score,
-        rank = excluded.rank,
-        status = excluded.status
-    `);
+    if (liveTeams.length === 0) {
+      db.prepare('DELETE FROM teams').run();
+      db.prepare('DELETE FROM answers').run();
+      console.log('✅ Cleared all teams in local SQLite (matches Render: 0 teams)!');
+    } else {
+      const insertSQLite = db.prepare(`
+        INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank, status, is_seed, is_deleted, deleted_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          team_name = excluded.team_name,
+          game = excluded.game,
+          captain = excluded.captain,
+          member1 = excluded.member1,
+          member2 = excluded.member2,
+          member3 = excluded.member3,
+          contact = excluded.contact,
+          password_hash = COALESCE(excluded.password_hash, teams.password_hash),
+          registration_status = excluded.registration_status,
+          score = excluded.score,
+          rank = excluded.rank,
+          status = excluded.status,
+          is_deleted = excluded.is_deleted,
+          deleted_at = excluded.deleted_at
+      `);
 
-    for (const t of liveTeams) {
-      insertSQLite.run(
-        t.id,
-        t.team_name,
-        t.game,
-        t.captain,
-        t.member1,
-        t.member2,
-        t.member3,
-        t.contact,
-        t.password_hash || null,
-        t.registration_status || 'VERIFIED',
-        t.score || 0,
-        t.rank || 0,
-        t.status || 'REGISTERED',
-        t.is_seed || 0,
-        t.created_at || new Date().toISOString()
-      );
+      for (const t of liveTeams) {
+        insertSQLite.run(
+          t.id,
+          t.team_name,
+          t.game,
+          t.captain,
+          t.member1,
+          t.member2,
+          t.member3,
+          t.contact,
+          t.password_hash || null,
+          t.registration_status || 'VERIFIED',
+          t.score || 0,
+          t.rank || 0,
+          t.status || 'REGISTERED',
+          t.is_seed || 0,
+          t.is_deleted || 0,
+          t.deleted_at || null,
+          t.created_at || new Date().toISOString()
+        );
+      }
+      console.log('✅ Synced to local SQLite (engineers_day.db)!');
     }
-    console.log('✅ Synced to local SQLite (engineers_day.db)!');
   } catch (sqlErr) {
     console.warn('⚠️ SQLite sync note:', sqlErr.message);
   }
@@ -85,44 +95,53 @@ export async function syncFromRender() {
 
     const conn = await mysql.createConnection({ host, port, user, password, database });
 
-    for (const t of liveTeams) {
-      await conn.query(`
-        INSERT INTO teams 
-        (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank_num, status, is_seed, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          team_name = VALUES(team_name),
-          game = VALUES(game),
-          captain = VALUES(captain),
-          member1 = VALUES(member1),
-          member2 = VALUES(member2),
-          member3 = VALUES(member3),
-          contact = VALUES(contact),
-          password_hash = COALESCE(VALUES(password_hash), password_hash),
-          registration_status = VALUES(registration_status),
-          score = VALUES(score),
-          rank_num = VALUES(rank_num),
-          status = VALUES(status)
-      `, [
-        t.id,
-        t.team_name,
-        t.game,
-        t.captain,
-        t.member1,
-        t.member2,
-        t.member3,
-        t.contact,
-        t.password_hash || null,
-        t.registration_status || 'VERIFIED',
-        t.score || 0,
-        t.rank || 0,
-        t.status || 'REGISTERED',
-        t.is_seed || 0,
-        t.created_at || new Date().toISOString()
-      ]);
+    if (liveTeams.length === 0) {
+      await conn.query('DELETE FROM teams');
+      await conn.query('DELETE FROM answers');
+      console.log('✅ Cleared all teams in local MySQL (matches Render: 0 teams)!');
+    } else {
+      for (const t of liveTeams) {
+        await conn.query(`
+          INSERT INTO teams 
+          (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank_num, status, is_seed, is_deleted, deleted_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            team_name = VALUES(team_name),
+            game = VALUES(game),
+            captain = VALUES(captain),
+            member1 = VALUES(member1),
+            member2 = VALUES(member2),
+            member3 = VALUES(member3),
+            contact = VALUES(contact),
+            password_hash = COALESCE(VALUES(password_hash), password_hash),
+            registration_status = VALUES(registration_status),
+            score = VALUES(score),
+            rank_num = VALUES(rank_num),
+            status = VALUES(status),
+            is_deleted = VALUES(is_deleted),
+            deleted_at = VALUES(deleted_at)
+        `, [
+          t.id,
+          t.team_name,
+          t.game,
+          t.captain,
+          t.member1,
+          t.member2,
+          t.member3,
+          t.contact,
+          t.password_hash || null,
+          t.registration_status || 'VERIFIED',
+          t.score || 0,
+          t.rank || 0,
+          t.status || 'REGISTERED',
+          t.is_seed || 0,
+          t.is_deleted || 0,
+          t.deleted_at || null,
+          t.created_at || new Date().toISOString()
+        ]);
+      }
+      console.log('✅ Synced to local MySQL (database: engineers_day)!');
     }
-    await conn.end();
-    console.log('✅ Synced to local MySQL (database: engineers_day)!');
   } catch (myErr) {
     console.warn('⚠️ MySQL sync note:', myErr.message);
   }
