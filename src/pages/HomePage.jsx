@@ -20,6 +20,7 @@ import {
 import CountdownTimer from '../components/CountdownTimer';
 import { api } from '../utils/api';
 import { useSquad } from '../context/SquadContext';
+import { formatEventDateTime } from '../utils/dateFormatter';
 
 export default function HomePage({ setCurrentPage, eventSettings }) {
   const { currentSquad, isSquadRegistered } = useSquad();
@@ -40,7 +41,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
       .catch(console.error);
   }, []);
 
-  const eventBadge = "15 SEPTEMBER 2026 • 09:00 AM";
+  const eventBadge = formatEventDateTime(eventSettings?.eventDate, '15 SEPTEMBER 2026 • 10:00 AM');
 
   return (
     <div className="relative min-h-screen">
@@ -114,7 +115,7 @@ export default function HomePage({ setCurrentPage, eventSettings }) {
           {/* Countdown Section */}
           <div className="mt-14 max-w-xl mx-auto">
             <CountdownTimer
-              eventDateStr={eventSettings?.eventDate || '2026-09-15T09:00:00'}
+              eventDateStr={eventSettings?.eventDate || '2026-09-15T10:00:00'}
               eventStatusOverride={eventSettings?.eventStatus || 'AUTO'}
             />
           </div>

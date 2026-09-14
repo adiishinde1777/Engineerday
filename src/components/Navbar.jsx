@@ -17,8 +17,9 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useSquad } from '../context/SquadContext';
+import { formatEventDateTime } from '../utils/dateFormatter';
 
-export default function Navbar({ currentPage, setCurrentPage }) {
+export default function Navbar({ currentPage, setCurrentPage, eventSettings }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated } = useAuth();
   const { isConnected } = useSocket();
@@ -50,7 +51,7 @@ export default function Navbar({ currentPage, setCurrentPage }) {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 font-mono text-cyan-400 font-semibold tracking-wider">
             <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-            15 SEPTEMBER 2026 • 09:00 AM
+            {formatEventDateTime(eventSettings?.eventDate, '15 SEPTEMBER 2026 • 10:00 AM')}
           </span>
           <span className="hidden sm:inline text-slate-600">|</span>
           <span className="hidden sm:inline text-slate-300 italic">

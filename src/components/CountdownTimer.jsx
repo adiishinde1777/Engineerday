@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Zap, CheckCircle2, Clock, Sparkles } from 'lucide-react';
+import { formatEventDateTime } from '../utils/dateFormatter';
 
-export default function CountdownTimer({ eventDateStr = '2026-09-15T09:00:00', eventStatusOverride = 'AUTO' }) {
+export default function CountdownTimer({ eventDateStr = '2026-09-15T10:00:00', eventStatusOverride = 'AUTO' }) {
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -104,7 +105,7 @@ export default function CountdownTimer({ eventDateStr = '2026-09-15T09:00:00', e
       {/* Date Notice */}
       <p className="mt-3 text-xs font-mono text-slate-400 text-center max-w-md flex items-center justify-center gap-1.5">
         <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-        <span>Grand Event Date: <strong className="text-cyan-300">15 September 2026 • 09:00 AM</strong></span>
+        <span>Grand Event Date: <strong className="text-cyan-300">{formatEventDateTime(eventDateStr, '15 September 2026 • 10:00 AM')}</strong></span>
       </p>
     </div>
   );

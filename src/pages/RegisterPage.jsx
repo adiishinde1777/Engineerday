@@ -28,10 +28,11 @@ import {
 import confetti from 'canvas-confetti';
 import { api } from '../utils/api';
 import { useSquad } from '../context/SquadContext';
+import { formatEventDateTime } from '../utils/dateFormatter';
 
 export default function RegisterPage({ eventSettings, setCurrentPage }) {
   const { currentSquad, saveSquad } = useSquad();
-  const eventDateBadge = "15 SEPTEMBER 2026 • 09:00 AM";
+  const eventDateBadge = formatEventDateTime(eventSettings?.eventDate, '15 SEPTEMBER 2026 • 10:00 AM');
 
   // Form State
   const [formData, setFormData] = useState({

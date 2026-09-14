@@ -1,6 +1,8 @@
 import express from 'express';
 import db from '../db.js';
 import { requireAdmin } from '../auth.js';
+import { syncToMySQL } from '../mysqlSync.js';
+import { getIO } from '../socketHandler.js';
 
 const router = express.Router();
 
@@ -36,10 +38,26 @@ router.put('/event', requireAdmin, (req, res) => {
   Object.entries(settings).forEach(([key, val]) => {
     if (val !== undefined && val !== null) {
       upsert.run(key, String(val));
+      syncToMySQL(`
+        INSERT INTO event_settings (setting_key, setting_value) VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+      `, [key, String(val)]);
     }
   });
 
-  return res.json({ success: true, message: 'Event settings updated successfully' });
+  // Fetch updated settings to broadcast live
+  const rows = db.prepare('SELECT key, value FROM event_settings').all();
+  const updatedSettings = {};
+  rows.forEach(r => {
+    updatedSettings[r.key] = r.value;
+  });
+
+  const io = getIO();
+  if (io) {
+    io.emit('event_settings_updated', updatedSettings);
+  }
+
+  return res.json({ success: true, message: 'Event settings updated successfully', eventSettings: updatedSettings });
 });
 
 // GET scoring settings

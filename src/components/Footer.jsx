@@ -1,5 +1,6 @@
 import React from 'react';
 import { Cpu, Heart, Code2, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react';
+import { formatEventDateTime } from '../utils/dateFormatter';
 
 export default function Footer({ setCurrentPage, eventSettings }) {
   const footerText = eventSettings?.footerText || "Engineer's Day 2026 | Designed & Developed by Aditya Shinde";
@@ -34,7 +35,7 @@ export default function Footer({ setCurrentPage, eventSettings }) {
             </p>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono text-cyan-300">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-              Event Date: 15 September 2026 • 09:00 AM
+              Event Date: {formatEventDateTime(eventSettings?.eventDate, '15 SEPTEMBER 2026 • 10:00 AM')}
             </div>
           </div>
 

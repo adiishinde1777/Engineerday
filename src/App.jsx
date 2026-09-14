@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { SocketProvider } from './context/SocketContext';
+import { SocketProvider, useSocket } from './context/SocketContext';
 import { SquadProvider } from './context/SquadContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -63,9 +63,22 @@ function MainApp() {
       .catch(console.error);
   };
 
+  const { socket } = useSocket();
+
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  // Listen for real-time event settings updates from admin
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('event_settings_updated', (updated) => {
+      if (updated) setEventSettings(updated);
+    });
+    return () => {
+      socket.off('event_settings_updated');
+    };
+  }, [socket]);
 
   // Handle Projector Mode (Standalone minimal UI)
   if (currentPage === 'projector-scoreboard') {
@@ -115,7 +128,7 @@ function MainApp() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-950">
-      <Navbar currentPage={currentPage} setCurrentPage={setCurrentPage} />
+      <Navbar currentPage={currentPage} setCurrentPage={setCurrentPage} eventSettings={eventSettings} />
 
       <main className="flex-1">
         {currentPage === 'home' && (
