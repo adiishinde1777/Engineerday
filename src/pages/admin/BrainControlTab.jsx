@@ -85,16 +85,59 @@ export default function BrainControlTab() {
     };
   }, [socket]);
 
+  const [selectedRound, setSelectedRound] = useState(1);
+  const [elapsedTimeStr, setElapsedTimeStr] = useState('00m 00s');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Sync selectedRound with active session round on first load or when session changes
+  useEffect(() => {
+    if (session?.round) {
+      setSelectedRound(session.round);
+    }
+  }, [session?.round]);
+
+  // Live stopwatch calculating elapsed time since game started
+  useEffect(() => {
+    const calcElapsed = () => {
+      const startedAtStr = session?.started_at || monitor.session?.started_at;
+      if (startedAtStr && (session?.status === 'RUNNING' || session?.status === 'TIME_UP')) {
+        const startMs = new Date(startedAtStr).getTime();
+        const nowMs = Date.now();
+        const diffSec = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+        setElapsedSeconds(diffSec);
+
+        const hours = Math.floor(diffSec / 3600);
+        const mins = Math.floor((diffSec % 3600) / 60);
+        const secs = diffSec % 60;
+        if (hours > 0) {
+          setElapsedTimeStr(`${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`);
+        } else {
+          setElapsedTimeStr(`${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`);
+        }
+      } else {
+        setElapsedTimeStr('00m 00s');
+        setElapsedSeconds(0);
+      }
+    };
+
+    calcElapsed();
+    const timer = setInterval(calcElapsed, 1000);
+    return () => clearInterval(timer);
+  }, [session?.started_at, session?.status, monitor.session?.started_at]);
+
   const handleAction = async (action, extra = {}) => {
     setLoading(true);
     try {
-      await api.controlGame('brain', { action, ...extra });
+      const payload = { action, round: selectedRound, ...extra };
+      await api.controlGame('brain', payload);
       fetchMonitor();
       if (action === 'STOP_GAME') {
-        setActionSuccessMsg('Game stopped! Final points calculated for all teams and Live Dashboard updated.');
+        setActionSuccessMsg(`Round ${selectedRound} stopped! Final points calculated for all teams and Live Dashboard updated.`);
         sound.playCorrect();
       } else if (action === 'START_GAME') {
-        setActionSuccessMsg('Round 1 Game Started! Teams can now answer questions.');
+        setActionSuccessMsg(`Round ${extra.round || selectedRound} Started! Teams can now view & answer questions in real-time.`);
+      } else if (action === 'RESET_GAME') {
+        setActionSuccessMsg(`Round ${extra.round || selectedRound} has been reset to standby.`);
       }
       setTimeout(() => setActionSuccessMsg(null), 5000);
     } catch (err) {
@@ -107,6 +150,16 @@ export default function BrainControlTab() {
   const { session } = brainSession;
   const isRunning = session?.status === 'RUNNING';
   const isTimeUp = session?.status === 'TIME_UP';
+
+  const startedAtDate = (session?.started_at || monitor.session?.started_at)
+    ? new Date(session?.started_at || monitor.session?.started_at)
+    : null;
+  const formattedStartTime = startedAtDate
+    ? startedAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+    : null;
+  const formattedStartDate = startedAtDate
+    ? startedAtDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
 
   const teamsList = monitor.teamsProgress || [];
 
@@ -124,11 +177,11 @@ export default function BrainControlTab() {
             Live Squad Progress & Scoring Monitor
           </h2>
           <p className="text-xs font-mono text-slate-400 mt-0.5">
-            Real-time telemetry showing each team's current question number, live score, and accuracy.
+            Select round, monitor live stopwatch, and manage team telemetry in real-time.
           </p>
         </div>
 
-        {/* Live Status Pill & Action Buttons */}
+        {/* Live Status Pill & Quick Action */}
         <div className="flex flex-wrap items-center gap-3">
           <div className={`px-4 py-2 rounded-2xl border text-xs font-mono font-bold uppercase flex items-center gap-2 shadow-lg ${
             isRunning
@@ -142,26 +195,6 @@ export default function BrainControlTab() {
             }`} />
             STATUS: {session?.status || 'IDLE'}
           </div>
-
-          {!isRunning ? (
-            <button
-              onClick={() => handleAction('START_GAME')}
-              disabled={loading}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs font-mono uppercase bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Start Game (Round 1)</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => handleAction('STOP_GAME')}
-              disabled={loading}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs font-mono uppercase bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer disabled:opacity-50 animate-pulse"
-            >
-              <StopCircle className="w-4 h-4" />
-              <span>Stop Game & Calculate Dashboard</span>
-            </button>
-          )}
 
           <button
             onClick={fetchMonitor}
@@ -180,6 +213,217 @@ export default function BrainControlTab() {
           <span className="font-bold">{actionSuccessMsg}</span>
         </div>
       )}
+
+      {/* ROUND SELECTION & LIVE TELEMETRY CONSOLE (USER REQUEST) */}
+      <div className="glass-card p-6 rounded-3xl border-2 border-cyan-500/40 bg-slate-900/95 shadow-2xl space-y-6">
+        
+        {/* Header with Title and Live Timer */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+              <span className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-widest">
+                ROUND CONTROL & LIVE TIMING TELEMETRY
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white font-heading mt-1">
+              Select Round & Manage Game Execution
+            </h3>
+            <p className="text-xs text-slate-400 font-mono mt-0.5">
+              Choose which round to start (Round 1, 2, or 3) and view live session duration.
+            </p>
+          </div>
+
+          {/* Real-time Elapsed Stopwatch Widget */}
+          <div className="flex items-center gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800 shadow-inner">
+            <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+              <Clock className={`w-5 h-5 ${isRunning ? 'animate-spin' : ''}`} />
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-slate-400 uppercase font-bold tracking-wider">
+                {isRunning ? '● LIVE ELAPSED TIME' : isTimeUp ? 'ROUND DURATION' : 'SESSION STOPWATCH'}
+              </div>
+              <div className="text-2xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-emerald-300">
+                {elapsedTimeStr}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400">
+                {formattedStartTime ? (
+                  <span>Started at: <strong className="text-amber-300">{formattedStartTime}</strong> ({formattedStartDate})</span>
+                ) : (
+                  <span>Game not started yet</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 Interactive Round Selection Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
+          
+          {/* Round 1 Card */}
+          <button
+            type="button"
+            onClick={() => setSelectedRound(1)}
+            disabled={isRunning}
+            className={`p-4 rounded-2xl text-left border transition-all cursor-pointer ${
+              selectedRound === 1
+                ? 'bg-cyan-950/60 border-cyan-400 shadow-lg shadow-cyan-500/20 ring-2 ring-cyan-500/40'
+                : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 opacity-80'
+            } ${isRunning && session?.round !== 1 ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                selectedRound === 1 ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}>
+                Round 1
+              </span>
+              {session?.round === 1 && isRunning && (
+                <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
+              )}
+            </div>
+            <div className="text-sm font-bold text-white font-heading">
+              Technical Foundation MCQs
+            </div>
+            <p className="text-[11px] text-slate-400 font-sans mt-1">
+              Core Electronics, Famous Engineers & General Engineering Logic.
+            </p>
+            <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
+              6 Questions • 30s per Q • 10 Pts
+            </div>
+          </button>
+
+          {/* Round 2 Card */}
+          <button
+            type="button"
+            onClick={() => setSelectedRound(2)}
+            disabled={isRunning}
+            className={`p-4 rounded-2xl text-left border transition-all cursor-pointer ${
+              selectedRound === 2
+                ? 'bg-cyan-950/60 border-cyan-400 shadow-lg shadow-cyan-500/20 ring-2 ring-cyan-500/40'
+                : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 opacity-80'
+            } ${isRunning && session?.round !== 2 ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                selectedRound === 2 ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}>
+                Round 2
+              </span>
+              {session?.round === 2 && isRunning && (
+                <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
+              )}
+            </div>
+            <div className="text-sm font-bold text-white font-heading">
+              Speed & Applied Logic
+            </div>
+            <p className="text-[11px] text-slate-400 font-sans mt-1">
+              CMOS Technology, Schmitt Triggers, Clock Cycles & Universal Gates.
+            </p>
+            <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
+              4 Questions • 30s per Q • 12 Pts
+            </div>
+          </button>
+
+          {/* Round 3 Card */}
+          <button
+            type="button"
+            onClick={() => setSelectedRound(3)}
+            disabled={isRunning}
+            className={`p-4 rounded-2xl text-left border transition-all cursor-pointer ${
+              selectedRound === 3
+                ? 'bg-cyan-950/60 border-cyan-400 shadow-lg shadow-cyan-500/20 ring-2 ring-cyan-500/40'
+                : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 opacity-80'
+            } ${isRunning && session?.round !== 3 ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                selectedRound === 3 ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}>
+                Round 3
+              </span>
+              {session?.round === 3 && isRunning && (
+                <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
+              )}
+            </div>
+            <div className="text-sm font-bold text-white font-heading">
+              Mastermind VLSI Finals
+            </div>
+            <p className="text-[11px] text-slate-400 font-sans mt-1">
+              VLSI Physical Layout, Moore's Law, Verilog HDL & Sequential Timing.
+            </p>
+            <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
+              4 Questions • 30s per Q • 15 Pts
+            </div>
+          </button>
+
+        </div>
+
+        {/* Action Controls for the Chosen Round */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800">
+          <div className="text-xs font-mono text-slate-300 flex items-center gap-2">
+            <span className="text-slate-400">Target Action:</span>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-cyan-300 font-bold">
+              Round {selectedRound}
+            </span>
+            {isRunning && (
+              <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                Currently Live on Screen
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {!isRunning ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleAction('START_GAME', { round: selectedRound })}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 flex items-center gap-2 shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-50"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Start Round {selectedRound} (Live)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAction('RESET_GAME', { round: selectedRound })}
+                  disabled={loading}
+                  className="px-4 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  title="Reset questions and session timer for this round"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Reset Round {selectedRound}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleAction('STOP_GAME')}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2 shadow-lg shadow-rose-600/30 cursor-pointer disabled:opacity-50 animate-pulse"
+                >
+                  <StopCircle className="w-4 h-4" />
+                  <span>Stop Round {selectedRound} & Finalize Scores</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAction('PAUSE_TIMER')}
+                  disabled={loading}
+                  className="px-4 py-3 rounded-xl font-bold text-xs font-mono uppercase bg-amber-600 hover:bg-amber-500 text-slate-950 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Pause className="w-4 h-4 fill-current" />
+                  <span>Pause Timer</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+      </div>
 
       {/* STATS OVERVIEW DECK */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -78,13 +78,15 @@ router.post('/control/:game', requireAdmin, (req, res) => {
 
   switch (action) {
     case 'START_GAME': {
-      const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = 1 ORDER BY created_at ASC LIMIT 1').get(game);
+      const targetRound = Number(round) || Number(session.round) || 1;
+      const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = ? ORDER BY created_at ASC LIMIT 1').get(game, targetRound);
       const duration = Number(timerDuration) || defaultTimer;
+      const startedAt = new Date().toISOString();
       db.prepare(`
         UPDATE game_sessions 
-        SET round = 1, current_question_id = ?, status = 'RUNNING', is_paused = 0, timer_remaining = ?
+        SET round = ?, current_question_id = ?, status = 'RUNNING', is_paused = 0, timer_remaining = ?, started_at = ?
         WHERE game = ?
-      `).run(firstQ ? firstQ.id : null, duration, game);
+      `).run(targetRound, firstQ ? firstQ.id : null, duration, startedAt, game);
 
       startServerTimer(game, duration);
       break;
@@ -260,6 +262,19 @@ router.post('/control/:game', requireAdmin, (req, res) => {
       db.prepare("UPDATE teams SET status = 'COMPLETED' WHERE game = ?").run(game);
       updateRanks(game);
       broadcastScoreboard();
+      broadcastSessionState(game);
+      break;
+    }
+
+    case 'RESET_GAME': {
+      stopServerTimer(game);
+      const targetRound = Number(round) || 1;
+      const firstQ = db.prepare('SELECT id FROM questions WHERE game = ? AND round = ? ORDER BY created_at ASC LIMIT 1').get(game, targetRound);
+      db.prepare(`
+        UPDATE game_sessions 
+        SET status = 'IDLE', round = ?, current_question_id = ?, is_paused = 0, started_at = null, timer_remaining = ?
+        WHERE game = ?
+      `).run(targetRound, firstQ ? firstQ.id : null, defaultTimer, game);
       broadcastSessionState(game);
       break;
     }
@@ -730,7 +745,17 @@ router.get('/monitor/:game', (req, res) => {
     completedTeamsCount: completedCount,
     leader,
     teamsProgress,
-    recentAnswers: answers
+    recentAnswers: answers,
+    session: session ? {
+      game: session.game,
+      round: session.round,
+      status: session.status,
+      timer_remaining: session.timer_remaining,
+      timer_started_at: session.timer_started_at,
+      started_at: session.started_at,
+      is_paused: session.is_paused,
+      current_question_id: session.current_question_id
+    } : null
   });
 });
 

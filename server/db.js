@@ -135,7 +135,8 @@ export function initDB() {
       status TEXT NOT NULL DEFAULT 'IDLE',
       timer_remaining INTEGER NOT NULL DEFAULT 30,
       timer_started_at INTEGER,
-      is_paused INTEGER NOT NULL DEFAULT 0
+      is_paused INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS answers (
@@ -153,6 +154,10 @@ export function initDB() {
       created_at TEXT NOT NULL
     );
   `);
+
+  try {
+    db.exec('ALTER TABLE game_sessions ADD COLUMN started_at TEXT;');
+  } catch {}
 
   seedDefaultData();
 }
@@ -582,6 +587,139 @@ function seedDefaultData() {
     ];
 
     for (const q of seedQuestions) {
+      insertQ.run(
+        q.id,
+        q.game,
+        q.round,
+        q.question,
+        q.type,
+        q.options,
+        q.answer,
+        q.timeLimit,
+        q.basePoints,
+        q.imageUrl,
+        new Date().toISOString()
+      );
+    }
+  }
+
+  // Ensure Brain Round 2 and Round 3 questions exist
+  const brainR2Check = db.prepare("SELECT count(*) as count FROM questions WHERE game = 'brain' AND round = 2").get();
+  if (!brainR2Check || brainR2Check.count === 0) {
+    const insertQ = db.prepare(`
+      INSERT INTO questions 
+      (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const additionalBrainQuestions = [
+      // BRAIN ROUND 2 (Speed & Applied Electronics / Logic)
+      {
+        id: 'q-b2-1',
+        game: 'brain',
+        round: 2,
+        question: 'In a CMOS inverter, which transistor conducts when the input voltage is LOW (Logic 0)?',
+        type: 'CMOS Technology',
+        options: JSON.stringify(['PMOS', 'NMOS', 'Both PMOS and NMOS', 'Neither']),
+        answer: 'PMOS',
+        timeLimit: 30,
+        basePoints: 12,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-2',
+        game: 'brain',
+        round: 2,
+        question: 'What is the primary function of a Schmitt Trigger in digital electronics?',
+        type: 'Waveform Conditioning',
+        options: JSON.stringify(['Wave shaping & noise immunity with hysteresis', 'Direct current attenuation', 'Clock frequency division by 4', 'Impedance mismatching']),
+        answer: 'Wave shaping & noise immunity with hysteresis',
+        timeLimit: 30,
+        basePoints: 12,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-3',
+        game: 'brain',
+        round: 2,
+        question: 'If a microprocessor clock frequency is 50 MHz, what is the time period of one clock cycle?',
+        type: 'Digital Timing',
+        options: JSON.stringify(['20 ns', '50 ns', '10 ns', '2 ns']),
+        answer: '20 ns',
+        timeLimit: 30,
+        basePoints: 12,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b2-4',
+        game: 'brain',
+        round: 2,
+        question: 'Which logic gates are universally capable of constructing any Boolean function?',
+        type: 'Universal Logic',
+        options: JSON.stringify(['NAND and NOR', 'AND and OR', 'XOR and XNOR', 'NOT only']),
+        answer: 'NAND and NOR',
+        timeLimit: 30,
+        basePoints: 12,
+        imageUrl: ''
+      },
+
+      // BRAIN ROUND 3 (Mastermind VLSI & Hardware Architecture Finals)
+      {
+        id: 'q-b3-1',
+        game: 'brain',
+        round: 3,
+        question: 'In VLSI physical layout, which Design Rule Check (DRC) prevents interconnect metal lines from short-circuiting?',
+        type: 'VLSI Layout / DRC',
+        options: JSON.stringify(['Minimum Spacing Rule', 'Antenna Ratio Rule', 'Latch-up Prevention Rule', 'Minimum Enclosure Rule']),
+        answer: 'Minimum Spacing Rule',
+        timeLimit: 30,
+        basePoints: 15,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b3-2',
+        game: 'brain',
+        round: 3,
+        question: 'What is Moore’s Law primarily related to in semiconductor engineering?',
+        type: 'Semiconductor Industry',
+        options: JSON.stringify([
+          'Doubling of transistors on a microchip approximately every 2 years',
+          'Halving of computer memory storage capacity every year',
+          'Clock frequency quadrupling every 6 months',
+          'Total power consumption halving every decade'
+        ]),
+        answer: 'Doubling of transistors on a microchip approximately every 2 years',
+        timeLimit: 30,
+        basePoints: 15,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b3-3',
+        game: 'brain',
+        round: 3,
+        question: 'Which Hardware Description Language (HDL) is universally standard in modern ASIC/FPGA digital design?',
+        type: 'Digital Hardware Design',
+        options: JSON.stringify(['Verilog / VHDL', 'HTML / CSS', 'Python / Django', 'SQL / SQLite']),
+        answer: 'Verilog / VHDL',
+        timeLimit: 30,
+        basePoints: 15,
+        imageUrl: ''
+      },
+      {
+        id: 'q-b3-4',
+        game: 'brain',
+        round: 3,
+        question: 'In flip-flop timing analysis, what is the minimum time data must remain stable BEFORE the active clock edge?',
+        type: 'Sequential Timing',
+        options: JSON.stringify(['Setup Time (Tsetup)', 'Hold Time (Thold)', 'Propagation Delay (Tpd)', 'Clock Jitter']),
+        answer: 'Setup Time (Tsetup)',
+        timeLimit: 30,
+        basePoints: 15,
+        imageUrl: ''
+      }
+    ];
+
+    for (const q of additionalBrainQuestions) {
       insertQ.run(
         q.id,
         q.game,

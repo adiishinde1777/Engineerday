@@ -195,6 +195,41 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   const currentQAnsweredInfo = activeQuestion ? answeredMap[activeQuestion.id] : null;
   const hasSubmittedCurrentQ = Boolean(currentQAnsweredInfo);
 
+  // Per-Question Countdown Clock
+  const [questionTimer, setQuestionTimer] = useState(30);
+
+  // Reset timer on question change
+  useEffect(() => {
+    if (activeQuestion) {
+      const limit = activeQuestion.time_limit || 30;
+      setQuestionTimer(limit);
+    }
+  }, [activeQuestion?.id, currentQIndex]);
+
+  // Reset question index when admin switches rounds
+  useEffect(() => {
+    setCurrentQIndex(0);
+    setSelectedOption('');
+    setTextAnswer('');
+    setResult(null);
+  }, [currentRoundNum]);
+
+  // Question countdown tick-down every second
+  useEffect(() => {
+    if (!isRunning || hasSubmittedCurrentQ || questionTimer <= 0) return;
+
+    const interval = setInterval(() => {
+      setQuestionTimer((prev) => {
+        if (prev <= 1) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRunning, hasSubmittedCurrentQ, questionTimer, activeQuestion?.id]);
+
   // Extract options for the active question
   const optionsList = (() => {
     if (!activeQuestion) return [];
@@ -478,7 +513,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
                     ? 'bg-rose-500 text-white'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               }`}>
-                {isRunning ? '● ROUND 1 LIVE' : isTimeUp ? 'ROUND 1 COMPLETED' : '🔒 STANDBY • WAITING FOR ADMIN'}
+                {isRunning ? `● ROUND ${currentRoundNum} LIVE` : isTimeUp ? `ROUND ${currentRoundNum} COMPLETED` : '🔒 STANDBY • WAITING FOR ADMIN'}
               </span>
             </div>
             <p className="text-xs font-mono text-slate-400">
@@ -537,7 +572,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
               </div>
               <div>
                 <span className="text-[11px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
-                  ROUND 1 COMPLETED • FINAL SCORECARD
+                  ROUND {currentRoundNum} COMPLETED • FINAL SCORECARD
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-black text-white font-heading">
                   Final Squad Points & Standings
@@ -564,7 +599,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
                 {selectedTeam?.score || 0} <span className="text-sm font-normal text-slate-400">Pts</span>
               </div>
               <p className="text-[11px] font-mono text-slate-400">
-                +{totalRoundPointsEarned} pts scored in Round 1
+                +{totalRoundPointsEarned} pts scored in Round {currentRoundNum}
               </p>
             </div>
 
@@ -594,7 +629,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
           {/* Question Breakdown List */}
           <div className="space-y-3 pt-2">
             <h4 className="text-xs font-mono uppercase tracking-widest text-slate-400 font-bold">
-              Round 1 Question-by-Question Breakdown
+              Round {currentRoundNum} Question-by-Question Breakdown
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {roundQuestions.map((q, idx) => {
@@ -658,7 +693,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
         <div className="glass-card p-4 rounded-2xl border border-cyan-500/20 bg-slate-900/90 space-y-3 animate-in fade-in duration-300">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
             <span className="text-slate-400 font-bold uppercase tracking-wider">
-              ROUND 1 QUESTION NAVIGATOR ({roundQuestions.length} Questions):
+              ROUND {currentRoundNum} QUESTION NAVIGATOR ({roundQuestions.length} Questions):
             </span>
             <div className="flex items-center gap-3">
               <span className="text-cyan-300">
@@ -745,7 +780,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
                 <span>GAME LOCKED • STANDBY FOR ADMIN</span>
               </div>
               <h2 className="text-2xl sm:text-4xl font-black text-white font-heading">
-                Round 1 Questions are Locked
+                Round {currentRoundNum} Questions are Locked
               </h2>
               <p className="text-sm text-slate-300 leading-relaxed font-sans">
                 स्पर्धेची पारदर्शकता राखण्यासाठी Coordinator / Admin ने गेम Start करेपर्यंत सर्व प्रश्न सुरक्षितपणे लॉक ठेवण्यात आले आहेत. Admin ने गेम सुरू करताच प्रश्न आपोआप स्क्रीनवर दिसतील.
@@ -820,7 +855,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
             <Brain className="w-8 h-8 animate-spin" />
           </div>
           <h3 className="text-2xl font-bold text-white font-heading">
-            Loading Round 1 Questions...
+            Loading Round {currentRoundNum} Questions...
           </h3>
           <p className="text-sm text-slate-400 max-w-md mx-auto">
             Syncing questions from the symposium server. Get ready!
@@ -831,13 +866,13 @@ export default function EngineersBrainPage({ setCurrentPage }) {
 
           
           {/* Top Bar inside Card: Question Number & Points Info */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-500/30">
                   QUESTION {currentQIndex + 1} OF {roundQuestions.length || 6}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono text-slate-400 bg-slate-950 border border-slate-800">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono text-slate-400 bg-slate-950 border border-slate-800 font-bold uppercase">
                   ROUND {activeQuestion.round}
                 </span>
               </div>
@@ -846,27 +881,92 @@ export default function EngineersBrainPage({ setCurrentPage }) {
               </p>
             </div>
 
-            {/* Answered badge status if already answered */}
-            {hasSubmittedCurrentQ && (
-              <div className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 border ${
-                currentQAnsweredInfo.is_correct
-                  ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
-                  : 'bg-rose-950/80 border-rose-500/60 text-rose-300'
-              }`}>
-                {currentQAnsweredInfo.is_correct ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Answered Correct (+{currentQAnsweredInfo.total_points} Pts)</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-4 h-4 text-rose-400" />
-                    <span>Answered Incorrect (0 Pts)</span>
-                  </>
-                )}
-              </div>
-            )}
+            {/* Right Side: Per-Question Clock OR Answered Status Badge */}
+            <div className="flex items-center gap-3">
+              {/* Answered badge status if already answered */}
+              {hasSubmittedCurrentQ ? (
+                <div className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 border ${
+                  currentQAnsweredInfo.is_correct
+                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
+                    : 'bg-rose-950/80 border-rose-500/60 text-rose-300'
+                }`}>
+                  {currentQAnsweredInfo.is_correct ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Answered Correct (+{currentQAnsweredInfo.total_points} Pts)</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4 text-rose-400" />
+                      <span>Answered Incorrect (0 Pts)</span>
+                    </>
+                  )}
+                </div>
+              ) : isRunning ? (
+                /* LIVE QUESTION TIMER CLOCK (USER REQUEST: USER LA CLOCK DISAYLA PAHIJE) */
+                <div className={`px-4 py-2 rounded-2xl border font-mono flex items-center gap-3 shadow-lg transition-all ${
+                  questionTimer <= 5
+                    ? 'bg-rose-950/90 border-rose-500 text-rose-300 animate-pulse shadow-rose-950/60'
+                    : questionTimer <= 10
+                      ? 'bg-amber-950/80 border-amber-500 text-amber-300 shadow-amber-950/50'
+                      : 'bg-slate-950 border-cyan-500/40 text-cyan-300 shadow-cyan-950/50'
+                }`}>
+                  <div className={`p-2 rounded-xl ${
+                    questionTimer <= 5 
+                      ? 'bg-rose-500/20 text-rose-400' 
+                      : questionTimer <= 10 
+                        ? 'bg-amber-500/20 text-amber-400' 
+                        : 'bg-cyan-500/20 text-cyan-400'
+                  }`}>
+                    <Clock className={`w-5 h-5 ${questionTimer <= 10 && questionTimer > 0 ? 'animate-spin' : ''}`} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider leading-none">
+                      QUESTION TIME
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black leading-tight flex items-baseline gap-1 mt-0.5">
+                      <span className={
+                        questionTimer <= 5 
+                          ? 'text-rose-400 font-mono font-black' 
+                          : questionTimer <= 10 
+                            ? 'text-amber-400 font-mono font-black' 
+                            : 'text-cyan-300 font-mono font-black'
+                      }>
+                        {String(questionTimer).padStart(2, '0')}s
+                      </span>
+                      <span className="text-[10px] font-normal text-slate-400">/ {activeQuestion.time_limit || 30}s</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
+
+          {/* QUESTION TIMER PROGRESS BAR */}
+          {!hasSubmittedCurrentQ && isRunning && (
+            <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800/90 shadow-inner -mt-4">
+              <div 
+                className={`h-full transition-all duration-1000 ${
+                  questionTimer <= 5 
+                    ? 'bg-gradient-to-r from-rose-500 to-red-600 shadow-lg shadow-rose-500/50' 
+                    : questionTimer <= 10 
+                      ? 'bg-gradient-to-r from-amber-400 to-orange-500' 
+                      : 'bg-gradient-to-r from-cyan-400 to-emerald-400'
+                }`}
+                style={{ width: `${Math.max(0, (questionTimer / (activeQuestion.time_limit || 30)) * 100)}%` }}
+              />
+            </div>
+          )}
+
+          {/* Time Expired Notice */}
+          {!hasSubmittedCurrentQ && isRunning && questionTimer === 0 && (
+            <div className="p-3.5 rounded-2xl bg-rose-950/80 border border-rose-500 text-rose-200 text-xs font-mono flex items-center justify-between gap-3 animate-pulse -mt-4 shadow-lg shadow-rose-950/50">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="font-bold">Time limit (30s) expired for this question! Select an option now to earn remaining points.</span>
+              </div>
+            </div>
+          )}
 
           {/* Question Text & Optional Media */}
           <div className="space-y-4">
