@@ -184,7 +184,7 @@ function seedDefaultData() {
   // Event Settings default
   const defaultSettings = [
     { key: 'eventName', value: "Engineers' Day Celebration 2026" },
-    { key: 'eventDate', value: '2026-09-15T09:00:00' },
+    { key: 'eventDate', value: '2026-09-15T10:00:00' },
     { key: 'eventSubtitle', value: 'Think. Create. Solve. Engineer the Future.' },
     { key: 'departmentName', value: 'Department of Electronics Engineering (VLSI Design and Technology)' },
     { key: 'eventDescription', value: 'Organized by the Department of Electronics Engineering (VLSI Design and Technology) in honor of Dr. Shrikant Honade. Join the premier departmental showdown: Engineer’s Brain and Engineering Pictionary.' },

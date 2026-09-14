@@ -27,10 +27,14 @@ export async function pushToRender() {
 
   // 2. Send to Render API endpoint
   try {
+    const settingsRows = db.prepare('SELECT key, value FROM event_settings').all();
+    const eventSettings = {};
+    settingsRows.forEach(r => { eventSettings[r.key] = r.value; });
+
     const res = await fetch(`${RENDER_API_URL}/api/teams/sync-push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teams })
+      body: JSON.stringify({ teams, eventSettings })
     });
 
     const data = await res.json();

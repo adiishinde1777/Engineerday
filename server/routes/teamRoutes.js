@@ -851,7 +851,19 @@ router.post('/webhook', (req, res) => {
 
 // POST Push teams to sync between local DB and live site
 router.post('/sync-push', (req, res) => {
-  const { teams } = req.body || {};
+  const { teams, eventSettings } = req.body || {};
+  if (eventSettings && typeof eventSettings === 'object') {
+    const upsertSetting = db.prepare(`
+      INSERT INTO event_settings (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `);
+    Object.entries(eventSettings).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        upsertSetting.run(k, String(v));
+      }
+    });
+  }
+
   if (!Array.isArray(teams)) {
     return res.status(400).json({ success: false, message: 'Invalid payload: teams array required' });
   }

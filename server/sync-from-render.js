@@ -135,10 +135,15 @@ export async function syncRenderAndLocal() {
   let pushedCount = 0;
   if (distinctLocalTeams.length > 0) {
     try {
+      // Fetch local event_settings to sync schedule & date as well
+      const settingsRows = db.prepare('SELECT key, value FROM event_settings').all();
+      const localSettings = {};
+      settingsRows.forEach(r => { localSettings[r.key] = r.value; });
+
       const pushRes = await fetch(`${RENDER_API_URL}/api/teams/sync-push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teams: distinctLocalTeams })
+        body: JSON.stringify({ teams: distinctLocalTeams, eventSettings: localSettings })
       });
       const pushData = await pushRes.json();
       if (pushData.success) {
