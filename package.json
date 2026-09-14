@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Engineers' Day 2026 Full-Stack Event & Live Game Management Website",
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "concurrently -k -s first -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"node --watch --watch-path=server server/index.js\" \"vite\"",
     "server": "node server/index.js",
