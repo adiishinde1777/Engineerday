@@ -6,8 +6,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import db, { initDB } from './db.js';
-import { setupSocketIO } from './socketHandler.js';
+import db, { initDB, updateRanks } from './db.js';
+import { setupSocketIO, broadcastScoreboard } from './socketHandler.js';
+import { startContinuousSync } from './mysqlSync.js';
 
 import authRoutes from './routes/authRoutes.js';
 import teamRoutes from './routes/teamRoutes.js';
@@ -51,6 +52,9 @@ const io = new SocketIOServer(server, {
   }
 });
 setupSocketIO(io);
+
+// Start continuous two-way sync between MySQL and website SQLite
+startContinuousSync(db, broadcastScoreboard, updateRanks, 3000);
 
 // Middleware
 app.use(cors());

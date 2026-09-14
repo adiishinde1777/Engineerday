@@ -15,7 +15,8 @@
     "tunnel": "npx localtunnel --port 5000",
     "preview": "vite preview",
     "db:setup": "node server/mysql-setup.js",
-    "sync:render": "node server/sync-from-render.js"
+    "sync:render": "node server/sync-from-render.js",
+    "sync:push-render": "node server/push-to-render.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

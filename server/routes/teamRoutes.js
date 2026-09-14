@@ -3,12 +3,15 @@ import bcrypt from 'bcryptjs';
 import db, { updateRanks } from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { broadcastScoreboard } from '../socketHandler.js';
-import { syncToMySQL } from '../mysqlSync.js';
+import { syncToMySQL, upsertTeamToMySQL, syncMySQLToSQLite } from '../mysqlSync.js';
 
 const router = express.Router();
 
 // GET all teams (Public / Admin)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  if (req.query.sync === 'true') {
+    try { await syncMySQLToSQLite(db, broadcastScoreboard, updateRanks); } catch {}
+  }
   const { game, status, registration_status, search, include_deleted } = req.query;
   let sql = 'SELECT * FROM teams WHERE 1=1';
   const params = [];
@@ -291,6 +294,12 @@ router.put('/:id', requireAdmin, (req, res) => {
   }
   broadcastScoreboard();
 
+  // Sync updated details to MySQL
+  const updatedTeam = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.id);
+  if (updatedTeam) {
+    upsertTeamToMySQL(updatedTeam);
+  }
+
   return res.json({ success: true, message: 'Team updated successfully' });
 });
 
@@ -388,7 +397,25 @@ router.post('/import', requireAdmin, (req, res) => {
     }
 
     const id = `team-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    insertStmt.run(id, name.trim(), game, captain.trim(), m1.trim(), m2.trim() || 'Member 2', m3.trim() || 'Member 3', contact.trim(), 'VERIFIED', new Date().toISOString());
+    const createdAt = new Date().toISOString();
+    insertStmt.run(id, name.trim(), game, captain.trim(), m1.trim(), m2.trim() || 'Member 2', m3.trim() || 'Member 3', contact.trim(), 'VERIFIED', createdAt);
+    upsertTeamToMySQL({
+      id,
+      team_name: name.trim(),
+      game,
+      captain: captain.trim(),
+      member1: m1.trim(),
+      member2: m2.trim() || 'Member 2',
+      member3: m3.trim() || 'Member 3',
+      contact: contact.trim(),
+      registration_status: 'VERIFIED',
+      score: 0,
+      rank_num: 999,
+      status: 'REGISTERED',
+      is_seed: 0,
+      is_deleted: 0,
+      created_at: createdAt
+    });
     importedCount++;
   });
 
@@ -596,7 +623,25 @@ export async function executeSyncGoogleSheet(sheetUrl, apiKey, previewOnly = fal
     }
 
     const id = `team-gapi-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    insertStmt.run(id, t.team_name, t.game, t.captain, t.member1, t.member2, t.member3, t.contact, new Date().toISOString());
+    const createdAt = new Date().toISOString();
+    insertStmt.run(id, t.team_name, t.game, t.captain, t.member1, t.member2, t.member3, t.contact, createdAt);
+    upsertTeamToMySQL({
+      id,
+      team_name: t.team_name,
+      game: t.game,
+      captain: t.captain,
+      member1: t.member1,
+      member2: t.member2,
+      member3: t.member3,
+      contact: t.contact,
+      registration_status: 'VERIFIED',
+      score: 0,
+      rank_num: 999,
+      status: 'REGISTERED',
+      is_seed: 0,
+      is_deleted: 0,
+      created_at: createdAt
+    });
     importedCount++;
     importedTeams.push({ id, ...t });
   });
@@ -760,6 +805,7 @@ router.post('/webhook', (req, res) => {
   }
 
   const id = `team-gf-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const createdAt = new Date().toISOString();
   db.prepare(`
     INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, registration_status, score, rank, status, is_seed, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'VERIFIED', 0, 999, 'REGISTERED', 0, ?)
@@ -772,8 +818,26 @@ router.post('/webhook', (req, res) => {
     String(member2).trim(),
     String(member3).trim(),
     String(contact).trim(),
-    new Date().toISOString()
+    createdAt
   );
+
+  upsertTeamToMySQL({
+    id,
+    team_name: cleanName,
+    game,
+    captain: String(captain).trim(),
+    member1: String(member1).trim(),
+    member2: String(member2).trim(),
+    member3: String(member3).trim(),
+    contact: String(contact).trim(),
+    registration_status: 'VERIFIED',
+    score: 0,
+    rank_num: 999,
+    status: 'REGISTERED',
+    is_seed: 0,
+    is_deleted: 0,
+    created_at: createdAt
+  });
 
   updateRanks(game);
   broadcastScoreboard();
@@ -783,6 +847,65 @@ router.post('/webhook', (req, res) => {
     message: `Team "${cleanName}" registered successfully via Google Forms Webhook!`,
     team: { id, team_name: cleanName, game, captain, contact }
   });
+});
+
+// POST Push teams to sync between local DB and live site
+router.post('/sync-push', (req, res) => {
+  const { teams } = req.body || {};
+  if (!Array.isArray(teams)) {
+    return res.status(400).json({ success: false, message: 'Invalid payload: teams array required' });
+  }
+
+  const upsertStmt = db.prepare(`
+    INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank, status, is_seed, is_deleted, deleted_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      team_name = excluded.team_name,
+      game = excluded.game,
+      captain = excluded.captain,
+      member1 = excluded.member1,
+      member2 = excluded.member2,
+      member3 = excluded.member3,
+      contact = excluded.contact,
+      password_hash = coalesce(excluded.password_hash, teams.password_hash),
+      registration_status = excluded.registration_status,
+      score = excluded.score,
+      rank = excluded.rank,
+      status = excluded.status,
+      is_deleted = excluded.is_deleted,
+      deleted_at = excluded.deleted_at
+  `);
+
+  let count = 0;
+  for (const t of teams) {
+    upsertStmt.run(
+      t.id,
+      t.team_name,
+      t.game || 'brain',
+      t.captain || 'Captain',
+      t.member1 || t.captain || 'Member 1',
+      t.member2 || 'Member 2',
+      t.member3 || 'Member 3',
+      t.contact || 'N/A',
+      t.password_hash || null,
+      t.registration_status || 'VERIFIED',
+      t.score || 0,
+      t.rank !== undefined ? t.rank : (t.rank_num || 0),
+      t.status || 'REGISTERED',
+      t.is_seed ? 1 : 0,
+      t.is_deleted ? 1 : 0,
+      t.deleted_at || null,
+      t.created_at || new Date().toISOString()
+    );
+    upsertTeamToMySQL(t);
+    count++;
+  }
+
+  updateRanks('brain');
+  updateRanks('pictionary');
+  broadcastScoreboard();
+
+  return res.json({ success: true, message: `Successfully synced ${count} teams!`, count });
 });
 
 export default router;

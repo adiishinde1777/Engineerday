@@ -396,6 +396,16 @@ router.post('/submit-answer', (req, res) => {
     WHERE id = ?
   `).run(newScore, isCorrect ? 'ANSWERED_CORRECT' : 'ANSWERED_WRONG', teamId);
 
+  syncToMySQL(
+    `INSERT INTO answers (id, team_id, question_id, game, round, answer_text, is_correct, response_time, base_points, time_bonus, total_points, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [answerId, teamId, questionId, activeGame, question.round, String(answer), isCorrect ? 1 : 0, responseTime, basePoints, timeBonus, totalPoints, new Date().toISOString()]
+  );
+  syncToMySQL(
+    'UPDATE teams SET score = ?, status = ? WHERE id = ?',
+    [newScore, isCorrect ? 'ANSWERED_CORRECT' : 'ANSWERED_WRONG', teamId]
+  );
+
   if (team.game === 'both') {
     updateRanks('brain');
     updateRanks('pictionary');
@@ -481,7 +491,6 @@ export function checkAndAutoStopBrainRoundIfAllSubmitted(currentRound = 1) {
       updateRanks('brain');
       updateRanks('pictionary');
       broadcastScoreboard();
-      syncToMySQL();
 
       const io = getIO();
       if (io) {
@@ -522,7 +531,6 @@ router.post('/finish-squad-round', (req, res) => {
 
   updateRanks(game);
   broadcastScoreboard();
-  syncToMySQL();
 
   const isStopped = checkAndAutoStopBrainRoundIfAllSubmitted(session.round || 1);
 

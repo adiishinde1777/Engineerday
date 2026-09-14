@@ -146,5 +146,9 @@ export async function syncFromRender() {
 }
 
 if (process.argv[1] && process.argv[1].endsWith('sync-from-render.js')) {
-  syncFromRender();
+  syncFromRender()
+    .catch((err) => console.error('Sync error:', err))
+    .finally(() => {
+      process.exit(0);
+    });
 }
