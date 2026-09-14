@@ -3,7 +3,6 @@ import { Cpu, Heart, Code2, Sparkles, ExternalLink, ShieldCheck } from 'lucide-r
 
 export default function Footer({ setCurrentPage, eventSettings }) {
   const footerText = eventSettings?.footerText || "Engineer's Day 2026 | Designed & Developed by Aditya Shinde";
-  const eventDate = "15 September 2026";
 
   return (
     <footer className="relative bg-slate-950 border-t border-slate-800 text-slate-400 overflow-hidden">
@@ -33,9 +32,9 @@ export default function Footer({ setCurrentPage, eventSettings }) {
             <p className="text-slate-400 text-sm leading-relaxed max-w-md">
               Department of Electronics Engineering (VLSI Design & Technology). Organized in honor of Dr. Shrikant Honade with live technical competitions.
             </p>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono text-cyan-300">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-              Event Date: {eventDate}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono text-amber-300">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              Event Date: Classified / Stay Tuned 🔒
             </div>
           </div>
 

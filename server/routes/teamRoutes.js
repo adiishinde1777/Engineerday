@@ -117,8 +117,17 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// POST create team (Admin or Direct Public Registration)
+// POST register team (Public)
 router.post('/', (req, res) => {
+  // Check if registrations are locked by admin
+  const lockSetting = db.prepare("SELECT value FROM event_settings WHERE key = 'registrations_locked'").get();
+  if (lockSetting && (lockSetting.value === 'true' || lockSetting.value === '1')) {
+    return res.status(403).json({
+      success: false,
+      message: 'Registrations are currently closed / locked by the event administrator.'
+    });
+  }
+
   const body = req.body || {};
   const team_name = (body.team_name || body.teamName || '').trim();
   const gameRaw = (body.game || 'brain').toLowerCase();
@@ -699,6 +708,15 @@ router.post('/webhook', (req, res) => {
 
   const body = req.body || {};
   console.log('[Google Forms Webhook Received]:', JSON.stringify(body, null, 2));
+
+  // Check if registrations are locked by admin
+  const lockSetting = db.prepare("SELECT value FROM event_settings WHERE key = 'registrations_locked'").get();
+  if (lockSetting && (lockSetting.value === 'true' || lockSetting.value === '1')) {
+    return res.status(403).json({
+      success: false,
+      message: 'Registrations are currently closed / locked by the event administrator.'
+    });
+  }
 
   // Case-insensitive flexible key lookup
   const findVal = (keywords) => {

@@ -215,7 +215,7 @@ export default function WinnersPage({ eventSettings, setCurrentPage, onSettingsU
           <div className="relative z-10 space-y-3 max-w-2xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-mono uppercase tracking-wider">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
-              OFFICIAL RESULTS SEALED • 15 SEPTEMBER 2026
+              OFFICIAL RESULTS SEALED • CONFIDENTIAL EVALUATION
             </div>
             <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
               Podium Champions Under Seal
@@ -339,7 +339,7 @@ export default function WinnersPage({ eventSettings, setCurrentPage, onSettingsU
       <div className="text-center max-w-3xl mx-auto space-y-3">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-xs font-mono uppercase tracking-wider shadow-lg">
           <Trophy className="w-4 h-4 text-amber-400" />
-          HALL OF FAME • 15 SEPTEMBER 2026
+          HALL OF FAME • OFFICIAL PODIUM
         </div>
         <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
           Engineer's Day 2026 Champions

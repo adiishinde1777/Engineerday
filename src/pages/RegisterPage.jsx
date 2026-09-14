@@ -31,7 +31,7 @@ import { useSquad } from '../context/SquadContext';
 
 export default function RegisterPage({ eventSettings, setCurrentPage }) {
   const { currentSquad, saveSquad } = useSquad();
-  const eventDate = "15 September 2026";
+  const eventDateBadge = "DATE & TIME: CLASSIFIED 🔒";
 
   // Form State
   const [formData, setFormData] = useState({
@@ -50,6 +50,7 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [registeredTeam, setRegisteredTeam] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
 
   // Live Registered Teams List State
   const [teams, setTeams] = useState([]);
@@ -74,6 +75,16 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
 
   useEffect(() => {
     fetchRegisteredTeams();
+
+    // Check if registrations are locked by admin
+    api.getSettings()
+      .then((res) => {
+        if (res.success && res.eventSettings) {
+          const locked = res.eventSettings.registrations_locked === 'true' || res.eventSettings.registrations_locked === '1';
+          setIsLocked(locked);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Handle Form Submission
@@ -198,6 +209,7 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
   const brainCount = teams.filter(t => t.game === 'brain' || t.game === 'both').length;
   const pictionaryCount = teams.filter(t => t.game === 'pictionary' || t.game === 'both').length;
   const bothCount = teams.filter(t => t.game === 'both').length;
+  const activeReceipt = registeredTeam || currentSquad;
 
   return (
     <div className="py-12 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -205,8 +217,8 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
       {/* Top Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-mono uppercase tracking-wider shadow-lg shadow-cyan-950/50">
-          <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-          <span>DEPT. OF ELECTRONICS ENGINEERING • {eventDate}</span>
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          <span>DEPT. OF ELECTRONICS ENGINEERING • {eventDateBadge}</span>
         </div>
         <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-100 to-cyan-300 font-heading tracking-tight">
           Event Registration Portal
@@ -243,8 +255,8 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
         </div>
       </div>
 
-      {/* CONFIRMATION DISPLAY: If squad just registered, display immediately */}
-      {registeredTeam && (
+      {/* CONFIRMATION DISPLAY: If squad is registered (current session or saved in local storage), keep visible on refresh */}
+      {activeReceipt && (
         <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-emerald-950/90 via-slate-900 to-slate-950 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-500/20 space-y-6 animate-in fade-in duration-300">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-emerald-500/30">
             <div className="flex items-center gap-3.5">
@@ -257,7 +269,7 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
                   Official Registration Confirmed
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-white font-heading">
-                  {registeredTeam.team_name}
+                  {activeReceipt.team_name}
                 </h2>
               </div>
             </div>
@@ -282,14 +294,14 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
             <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
               <span className="text-slate-500 uppercase">Selected Event</span>
               <div className="text-base font-bold text-cyan-300 uppercase">
-                {registeredTeam.game === 'both'
+                {activeReceipt.game === 'both'
                   ? "Both Competitions (Brain + Pictionary)"
-                  : registeredTeam.game === 'brain' 
+                  : activeReceipt.game === 'brain' 
                     ? "Engineer’s Brain" 
                     : "Engineering Pictionary"}
               </div>
               <p className="text-[11px] text-slate-400">
-                {registeredTeam.game === 'both' ? 'All-Rounder Combo • 15 Sept 2026' : 'Technical showdown on 15 Sept 2026'}
+                {activeReceipt.game === 'both' ? 'All-Rounder Combo • Date Classified 🔒' : 'Technical showdown • Date Classified 🔒'}
               </p>
             </div>
 
@@ -297,18 +309,18 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
               <span className="text-slate-500 uppercase">Captain (Member 1)</span>
               <div className="text-base font-bold text-white flex items-center gap-1.5">
                 <Crown className="w-4 h-4 text-amber-400" />
-                <span>{registeredTeam.captain}</span>
+                <span>{activeReceipt.captain}</span>
               </div>
               <div className="text-[11px] text-slate-300 flex items-center gap-1 mt-1">
                 <Phone className="w-3 h-3 text-cyan-400" />
-                <span>{registeredTeam.contact}</span>
+                <span>{activeReceipt.contact}</span>
               </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1">
               <span className="text-slate-500 uppercase">Squad Members</span>
-              <div className="text-white font-semibold">2. {registeredTeam.member2}</div>
-              <div className="text-white font-semibold">3. {registeredTeam.member3}</div>
+              <div className="text-white font-semibold">2. {activeReceipt.member2}</div>
+              <div className="text-white font-semibold">3. {activeReceipt.member3}</div>
               <span className="text-[10px] text-emerald-400 font-bold block pt-1">
                 ✓ Exactly 3 Members Confirmed
               </span>
@@ -317,11 +329,11 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-800/80">
             <p className="text-xs text-slate-400 font-mono">
-              ✓ Successfully stored in tournament database. All team members must report at the Technical Hub 30 minutes prior to round 1 with valid college ID.
+              ✓ Stored in tournament database. All team members must report at the Technical Hub prior to round 1 with valid college ID.
             </p>
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
               {setCurrentPage && (
-                registeredTeam.game === 'both' ? (
+                activeReceipt.game === 'both' ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -343,18 +355,21 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setCurrentPage(registeredTeam.game === 'brain' ? 'brain-arena' : 'pictionary-arena')}
+                    onClick={() => setCurrentPage(activeReceipt.game === 'brain' ? 'brain-arena' : 'pictionary-arena')}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-400 hover:from-emerald-300 hover:to-sky-300 text-slate-950 font-black text-xs font-mono tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/30 cursor-pointer animate-pulse"
                   >
                     <Zap className="w-4 h-4 fill-current" />
-                    <span>PLAY {registeredTeam.game === 'brain' ? "BRAIN ARENA" : "PICTIONARY ARENA"} NOW</span>
+                    <span>PLAY {activeReceipt.game === 'brain' ? "BRAIN ARENA" : "PICTIONARY ARENA"} NOW</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )
               )}
               <button
                 type="button"
-                onClick={() => setRegisteredTeam(null)}
+                onClick={() => {
+                  setRegisteredTeam(null);
+                  saveSquad(null);
+                }}
                 className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-bold transition-all cursor-pointer"
               >
                 + Register Another Squad
@@ -370,6 +385,28 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* REGISTRATION LOCK NOTICE IF ADMIN LOCKED */}
+      {isLocked && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-rose-950/90 via-slate-900 to-rose-950/90 border-2 border-rose-500/60 shadow-2xl shadow-rose-950/50 flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+          <div className="w-14 h-14 rounded-2xl bg-rose-900/80 border border-rose-400 flex items-center justify-center shrink-0 shadow-lg">
+            <Lock className="w-7 h-7 text-rose-300 animate-pulse" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h3 className="text-lg sm:text-xl font-black text-white font-heading tracking-wide">
+                REGISTRATIONS CURRENTLY LOCKED
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black uppercase bg-rose-500 text-slate-950 tracking-wider">
+                CLOSED BY ADMIN
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm font-mono text-rose-200/90 leading-relaxed">
+              New team registrations have been officially closed by the event administrator. Registered squads can review their pass above and check their entry in the tournament directory below.
+            </p>
           </div>
         </div>
       )}
@@ -703,13 +740,22 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full py-4 sm:py-5 rounded-2xl font-black text-base sm:text-lg text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-xl shadow-cyan-500/30 hover:shadow-cyan-400/50 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-3"
+              disabled={isSubmitting || isLocked}
+              className={`w-full py-4 sm:py-5 rounded-2xl font-black text-base sm:text-lg transition-all flex items-center justify-center gap-3 ${
+                isLocked 
+                  ? 'bg-slate-800/90 text-rose-400 border border-rose-500/40 opacity-70 cursor-not-allowed shadow-none' 
+                  : 'text-slate-950 bg-gradient-to-r from-cyan-400 via-cyan-300 to-sky-400 hover:from-cyan-300 hover:to-sky-300 shadow-xl shadow-cyan-500/30 hover:shadow-cyan-400/50 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 cursor-pointer'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
                   <span>Submitting & Saving Squad into Database...</span>
+                </>
+              ) : isLocked ? (
+                <>
+                  <Lock className="w-5 h-5 text-rose-400" />
+                  <span>REGISTRATION FORM CURRENTLY LOCKED (ADMIN CLOSED)</span>
                 </>
               ) : (
                 <>
@@ -719,7 +765,9 @@ export default function RegisterPage({ eventSettings, setCurrentPage }) {
               )}
             </button>
             <p className="text-[11px] text-slate-400 font-mono text-center mt-3">
-              ⚡ Your squad will immediately appear in the registered teams list below and in the Live Dashboard!
+              {isLocked 
+                ? '🔒 Registration submissions are paused. Please contact the department coordinators for inquiries.'
+                : '⚡ Your squad will immediately appear in the registered teams list below and in the Live Dashboard!'}
             </p>
           </div>
 

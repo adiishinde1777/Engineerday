@@ -191,7 +191,8 @@ function seedDefaultData() {
     { key: 'developerName', value: 'Aditya Shinde' },
     { key: 'winnersFinalized', value: 'false' },
     { key: 'reportingInstructions', value: 'All team members must report at the Technical Hub 30 minutes prior to round 1 with valid college ID cards.' },
-    { key: 'google_sheet_url', value: 'https://docs.google.com/spreadsheets/d/1-aZXcwZR93NNCeK6OD4OgZhdAh3gfukRbwN_mBGTLbE/edit?resourcekey=&gid=1718195895#gid=1718195895' }
+    { key: 'google_sheet_url', value: 'https://docs.google.com/spreadsheets/d/1-aZXcwZR93NNCeK6OD4OgZhdAh3gfukRbwN_mBGTLbE/edit?resourcekey=&gid=1718195895#gid=1718195895' },
+    { key: 'registrations_locked', value: 'false' }
   ];
 
   const insertSetting = db.prepare(`

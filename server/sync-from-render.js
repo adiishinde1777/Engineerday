@@ -34,9 +34,7 @@ export async function syncFromRender() {
     const db = new DatabaseSync(sqliteDbPath);
 
     if (liveTeams.length === 0) {
-      db.prepare('DELETE FROM teams').run();
-      db.prepare('DELETE FROM answers').run();
-      console.log('✅ Cleared all teams in local SQLite (matches Render: 0 teams)!');
+      console.log('ℹ️ Render returned 0 teams. Keeping existing local data intact.');
     } else {
       const insertSQLite = db.prepare(`
         INSERT INTO teams (id, team_name, game, captain, member1, member2, member3, contact, password_hash, registration_status, score, rank, status, is_seed, is_deleted, deleted_at, created_at)
@@ -96,9 +94,7 @@ export async function syncFromRender() {
     const conn = await mysql.createConnection({ host, port, user, password, database });
 
     if (liveTeams.length === 0) {
-      await conn.query('DELETE FROM teams');
-      await conn.query('DELETE FROM answers');
-      console.log('✅ Cleared all teams in local MySQL (matches Render: 0 teams)!');
+      console.log('ℹ️ Render returned 0 teams. Keeping existing MySQL data intact.');
     } else {
       for (const t of liveTeams) {
         await conn.query(`

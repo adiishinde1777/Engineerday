@@ -36,6 +36,8 @@ export default function RegistrationsTab() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [viewMode, setViewMode] = useState('users'); // 'users' (Individual Participants) | 'teams' (Squads)
+  const [isRegLocked, setIsRegLocked] = useState(false);
+  const [lockLoading, setLockLoading] = useState(false);
 
   // Compute flattened individual users list across all squads
   const allUsersList = React.useMemo(() => {
@@ -248,9 +250,42 @@ export default function RegistrationsTab() {
     }
   };
 
+  const fetchLockStatus = async () => {
+    try {
+      const res = await api.getSettings();
+      if (res.success && res.eventSettings) {
+        setIsRegLocked(res.eventSettings.registrations_locked === 'true' || res.eventSettings.registrations_locked === '1');
+      }
+    } catch (err) {
+      console.error('Failed to load lock status:', err);
+    }
+  };
+
   useEffect(() => {
     fetchTeams();
   }, [filterGame, filterStatus, search]);
+
+  useEffect(() => {
+    fetchLockStatus();
+  }, []);
+
+  const handleToggleLock = async () => {
+    const nextLocked = !isRegLocked;
+    const actionName = nextLocked ? 'LOCK / STOP' : 'UNLOCK';
+    if (!window.confirm(`Are you sure you want to ${actionName} squad registrations? ${nextLocked ? 'Students will no longer be able to submit registrations.' : 'Students will be allowed to submit registrations again.'}`)) {
+      return;
+    }
+
+    setLockLoading(true);
+    try {
+      await api.updateEventSettings({ registrations_locked: nextLocked ? 'true' : 'false' });
+      setIsRegLocked(nextLocked);
+    } catch (err) {
+      alert(err.message || 'Failed to update registration status');
+    } finally {
+      setLockLoading(false);
+    }
+  };
 
   const handleToggleStatus = async (team) => {
     const newStatus = team.registration_status === 'VERIFIED' ? 'PENDING' : 'VERIFIED';
@@ -513,6 +548,33 @@ export default function RegistrationsTab() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Registration Lock / Unlock toggle button */}
+          <button
+            type="button"
+            disabled={lockLoading}
+            onClick={handleToggleLock}
+            className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all border ${
+              isRegLocked
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30'
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30'
+            }`}
+            title={isRegLocked ? 'Click to Unlock Registrations' : 'Click to Lock / Stop Registrations'}
+          >
+            {lockLoading ? (
+              <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : isRegLocked ? (
+              <>
+                <span>🔒</span>
+                <span>Form: LOCKED</span>
+              </>
+            ) : (
+              <>
+                <span>🟢</span>
+                <span>Form: OPEN</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={() => setShowGoogleFormModal(true)}
             className="px-3.5 py-2 rounded-xl text-xs font-mono font-semibold bg-indigo-950/80 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40 flex items-center gap-1.5 shadow-sm"

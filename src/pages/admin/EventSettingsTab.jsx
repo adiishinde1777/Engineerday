@@ -12,9 +12,11 @@ export default function EventSettingsTab({ onSettingsUpdated }) {
     eventStatus: 'AUTO',
     footerText: "Engineer's Day 2026 | Designed & Developed by Aditya Shinde",
     reportingInstructions: 'All team members must report at the Technical Auditorium 30 minutes prior to Round 1 with valid college ID cards.',
-    winnersFinalized: 'false'
+    winnersFinalized: 'false',
+    registrations_locked: 'false'
   });
   const [loading, setLoading] = useState(false);
+  const [lockingLoading, setLockingLoading] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -26,6 +28,29 @@ export default function EventSettingsTab({ onSettingsUpdated }) {
       })
       .catch(console.error);
   }, []);
+
+  const handleQuickToggleLock = async () => {
+    const isCurrentlyLocked = settings.registrations_locked === 'true' || settings.registrations_locked === '1';
+    const newLockState = isCurrentlyLocked ? 'false' : 'true';
+    const actionName = isCurrentlyLocked ? 'UNLOCK' : 'LOCK';
+    
+    if (!window.confirm(`Are you sure you want to ${actionName} squad registrations? ${!isCurrentlyLocked ? 'Students will immediately be blocked from registering new teams.' : 'Students will be allowed to submit new registrations.'}`)) {
+      return;
+    }
+
+    setLockingLoading(true);
+    try {
+      await api.updateEventSettings({ registrations_locked: newLockState });
+      setSettings(prev => ({ ...prev, registrations_locked: newLockState }));
+      if (onSettingsUpdated) onSettingsUpdated({ ...settings, registrations_locked: newLockState });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
+    } catch (err) {
+      alert(err.message || 'Failed to update registration lock state');
+    } finally {
+      setLockingLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,6 +68,8 @@ export default function EventSettingsTab({ onSettingsUpdated }) {
     }
   };
 
+  const isLocked = settings.registrations_locked === 'true' || settings.registrations_locked === '1';
+
   return (
     <div className="space-y-6">
       
@@ -54,6 +81,65 @@ export default function EventSettingsTab({ onSettingsUpdated }) {
         <p className="text-xs font-mono text-slate-400 mt-0.5">
           Update event branding, registration Google Form URL, reporting guidelines, and symposium status.
         </p>
+      </div>
+
+      {/* Emergency / Registration Gateway Lock Control */}
+      <div className={`p-5 rounded-3xl border transition-all ${
+        isLocked 
+          ? 'bg-rose-950/40 border-rose-500/50 shadow-lg shadow-rose-950/50' 
+          : 'bg-emerald-950/30 border-emerald-500/40 shadow-lg shadow-emerald-950/40'
+      }`}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-mono text-xl shrink-0 ${
+              isLocked ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+            }`}>
+              {isLocked ? '🔒' : '🟢'}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white uppercase tracking-wider font-heading">
+                  Registration Gateway Lock
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                  isLocked ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                }`}>
+                  {isLocked ? 'Form Locked' : 'Form Open'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                {isLocked 
+                  ? 'Squad registration is currently LOCKED. Public visitors cannot register new teams. Form fields and API submissions are disabled.'
+                  : 'Squad registration is currently OPEN. Candidates can register their squads and view confirmation receipts.'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={lockingLoading}
+            onClick={handleQuickToggleLock}
+            className={`px-5 py-2.5 rounded-xl font-mono text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-md shrink-0 ${
+              isLocked
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+            } disabled:opacity-50`}
+          >
+            {lockingLoading ? (
+              <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : isLocked ? (
+              <>
+                <span>🔓</span>
+                <span>Unlock Registrations</span>
+              </>
+            ) : (
+              <>
+                <span>🔒</span>
+                <span>Lock / Stop Registration</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {saved && (

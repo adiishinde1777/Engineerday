@@ -11,7 +11,8 @@ import {
   Users, 
   Tv, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -47,9 +48,9 @@ export default function Navbar({ currentPage, setCurrentPage }) {
       {/* Top micro bar with date and developer credit */}
       <div className="bg-slate-900/90 border-b border-slate-800 text-xs text-slate-400 py-1 px-4 sm:px-8 flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 font-mono text-cyan-400 font-semibold tracking-wider">
-            <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-            15 SEPTEMBER 2026
+          <span className="flex items-center gap-1.5 font-mono text-amber-400 font-semibold tracking-wider">
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            DATE & TIME: CLASSIFIED 🔒
           </span>
           <span className="hidden sm:inline text-slate-600">|</span>
           <span className="hidden sm:inline text-slate-300 italic">

@@ -55,7 +55,7 @@ export default function ProjectorScoreboard({ onExit }) {
               </span>
             </div>
             <p className="text-sm font-mono text-slate-400 mt-0.5">
-              AUDITORIUM PRESENTATION DISPLAY • 15 SEPTEMBER 2026
+              AUDITORIUM PRESENTATION DISPLAY • OFFICIAL ARENA
             </p>
           </div>
         </div>

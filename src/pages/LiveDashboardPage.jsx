@@ -79,8 +79,8 @@ export default function LiveDashboardPage({ setCurrentPage }) {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               REAL-TIME BROADCAST
             </span>
-            <span className="text-xs font-mono text-slate-400">
-              15 September 2026
+            <span className="text-xs font-mono text-cyan-400">
+              SYMPOSIUM 2026 • LIVE ARENA
             </span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-black text-white font-heading tracking-tight">
