@@ -85,6 +85,10 @@ export default function BrainControlTab() {
     };
   }, [socket]);
 
+  const session = brainSession?.session || monitor?.session || null;
+  const isRunning = session?.status === 'RUNNING';
+  const isTimeUp = session?.status === 'TIME_UP';
+
   const [selectedRound, setSelectedRound] = useState(1);
   const [elapsedTimeStr, setElapsedTimeStr] = useState('00m 00s');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -146,10 +150,6 @@ export default function BrainControlTab() {
       setLoading(false);
     }
   };
-
-  const { session } = brainSession;
-  const isRunning = session?.status === 'RUNNING';
-  const isTimeUp = session?.status === 'TIME_UP';
 
   const startedAtDate = (session?.started_at || monitor.session?.started_at)
     ? new Date(session?.started_at || monitor.session?.started_at)
