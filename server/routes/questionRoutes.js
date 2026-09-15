@@ -10,19 +10,39 @@ router.get('/', (req, res) => {
   const { game, round, type, search } = req.query;
   const isAdmin = checkIsAdmin(req);
 
-  // Anti-cheating: If requested for a specific game by non-admin,
-  // allow release if admin started game, or if preview requested (without answers)
-  const isPreview = req.query.preview === 'true' || req.query.allow_preview === 'true';
-  if (!isAdmin && game && game !== 'all' && !isPreview) {
-    const session = db.prepare('SELECT status FROM game_sessions WHERE game = ?').get(game);
-    const allowedStatuses = ['RUNNING', 'STOPPED', 'PAUSED', 'ROUND_ENDED', 'TIME_UP'];
+  // Anti-cheating: Non-admin participants can ONLY receive questions when the session is RUNNING (or completed)
+  // Preview mode is strictly restricted to authenticated administrators.
+  if (!isAdmin) {
+    if (!game || game === 'all') {
+      return res.json({
+        success: true,
+        count: 0,
+        questions: [],
+        isLocked: true,
+        message: 'Questions are strictly locked. Please specify an active game arena.'
+      });
+    }
+
+    const session = db.prepare('SELECT status, round FROM game_sessions WHERE game = ?').get(game);
+    const allowedStatuses = ['RUNNING', 'ROUND_ENDED', 'TIME_UP'];
     if (!session || !allowedStatuses.includes(session.status)) {
       return res.json({
         success: true,
         count: 0,
         questions: [],
         isLocked: true,
-        message: 'Questions are strictly locked until the admin starts the round.'
+        message: 'Questions are strictly locked until the coordinator starts the round.'
+      });
+    }
+
+    // When the game is running, players may only receive questions for the active round
+    if (session.status === 'RUNNING' && round && Number(round) !== session.round) {
+      return res.json({
+        success: true,
+        count: 0,
+        questions: [],
+        isLocked: true,
+        message: `Questions for Round ${round} are locked. Active round is Round ${session.round}.`
       });
     }
   }

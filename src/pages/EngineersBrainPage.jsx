@@ -44,7 +44,6 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   // All questions in the current round
   const [roundQuestions, setRoundQuestions] = useState([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [selectedRound, setSelectedRound] = useState(1);
 
   // Map of answers submitted by this team: { [questionId]: { is_correct, total_points, answer_text, time_bonus } }
   const [answeredMap, setAnsweredMap] = useState({});
@@ -86,19 +85,19 @@ export default function EngineersBrainPage({ setCurrentPage }) {
     }
   }, [currentSquad]);
 
-  // Fetch all questions for the current round (supports preview mode when round has not started live)
-  const fetchRoundQuestions = async (roundNum = 1, forcePreview = false) => {
+  // Fetch all questions for the current round (strictly only when running or for admin or round complete)
+  const fetchRoundQuestions = async (roundNum = 1) => {
     try {
       const params = { game: 'brain', round: roundNum };
-      if (forcePreview || (!isRunning && !isAuthenticated)) {
-        params.preview = 'true';
-      }
       const res = await api.getQuestions(params);
       if (res.success && Array.isArray(res.questions)) {
         setRoundQuestions(res.questions);
+      } else {
+        setRoundQuestions([]);
       }
     } catch (err) {
       console.error('Failed to load round questions:', err);
+      setRoundQuestions([]);
     }
   };
 
@@ -131,7 +130,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   const isTimeUp = session?.status === 'TIME_UP';
   const isStopped = session?.status === 'STOPPED' || session?.status === 'PAUSED' || Boolean(session?.is_paused && session?.status !== 'TIME_UP');
   const isRunning = session?.status === 'RUNNING' && !isTimeUp && !isStopped;
-  const currentRoundNum = (isRunning || isStopped || isTimeUp) ? (session?.round || 1) : selectedRound;
+  const currentRoundNum = (isRunning || isStopped || isTimeUp) ? (session?.round || 1) : (session?.round || 1);
 
   // Helper to jump to first remaining (unanswered) question in this round
   const jumpToFirstRemainingQuestion = (questionsList, answersMapObj) => {
@@ -142,14 +141,14 @@ export default function EngineersBrainPage({ setCurrentPage }) {
     }
   };
 
-  // Initial fetch of questions for this round
+  // Only fetch questions when the round is RUNNING or user is Admin or round has finished (scorecard)
   useEffect(() => {
-    if (isRunning || isAuthenticated) {
-      fetchRoundQuestions(currentRoundNum, false);
+    if (isRunning || isAuthenticated || isTimeUp) {
+      fetchRoundQuestions(currentRoundNum);
     } else {
-      fetchRoundQuestions(selectedRound, true);
+      setRoundQuestions([]);
     }
-  }, [isRunning, isStopped, isAuthenticated, currentRoundNum, selectedRound]);
+  }, [isRunning, isAuthenticated, isTimeUp, currentRoundNum]);
 
   // Fetch team details whenever selectedTeamId changes
   useEffect(() => {
@@ -912,120 +911,156 @@ export default function EngineersBrainPage({ setCurrentPage }) {
         </div>
       )}
 
-      {/* 2. ROUND PREVIEW & INTERACTIVE QUESTION ARENA (When official round is on standby) */}
+      {/* 2. SECURE ARENA STANDBY & WAITING LOBBY (When official round is on standby / waiting for Coordinator) */}
       {!isRunning && !isStopped && !isTimeUp && (
-        <div className="glass-card p-5 sm:p-7 rounded-3xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 space-y-5 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
-                <Brain className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
-                    ROUND {selectedRound} QUESTIONS ACTIVE
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    OFFICIAL LIVE TIMER ON STANDBY
-                  </span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black text-white font-heading mt-0.5">
-                  Engineer's Brain: Round {selectedRound} Questions
-                </h2>
-                <p className="text-xs font-mono text-slate-400">
-                  Switch between Round 1 and Round 2 below. You can navigate questions and practice while waiting for the coordinator.
-                </p>
-              </div>
-            </div>
+        <div className="glass-card p-6 sm:p-12 rounded-3xl border-2 border-cyan-500/40 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-center space-y-8 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
+          <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            {/* Interactive Round Switcher Tabs */}
-            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-              <button
-                type="button"
-                onClick={() => { setSelectedRound(1); setCurrentQIndex(0); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                  selectedRound === 1 
-                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
-                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <span>Round 1 (6 Qs)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setSelectedRound(2); setCurrentQIndex(0); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                  selectedRound === 2 
-                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
-                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <span>Round 2 (6 Qs)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setSelectedRound(3); setCurrentQIndex(0); }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                  selectedRound === 3 
-                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
-                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <span>Round 3 (6 Qs)</span>
-              </button>
-
-              {isAuthenticated && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await api.controlGame('brain', { action: 'START_GAME', round: selectedRound });
-                    } catch (e) {
-                      alert(e.message);
-                    }
-                  }}
-                  className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/25"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Start Round {selectedRound} Live</span>
-                </button>
-              )}
+          {/* Animated Lock & Standby Graphic */}
+          <div className="relative mx-auto w-24 h-24">
+            <div className="absolute inset-0 rounded-3xl bg-cyan-500/20 border-2 border-cyan-500/40 animate-ping opacity-30"></div>
+            <div className="relative w-24 h-24 rounded-3xl bg-slate-950 border-2 border-cyan-400 flex items-center justify-center text-cyan-400 shadow-xl shadow-cyan-500/20">
+              <Lock className="w-10 h-10" />
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-slate-400">
-            <div className="flex items-center gap-2">
+          <div className="space-y-3 max-w-xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold tracking-wider uppercase shadow-inner">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-              <span>Browsing Question {currentQIndex + 1} of {roundQuestions.length || 6}</span>
+              <span>STANDBY • ROUND {currentRoundNum} QUESTIONS LOCKED</span>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setCurrentPage('live-dashboard')}
-                className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Live Dashboard</span>
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => setCurrentPage('games')}
-                className="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
-              >
-                <span>Rules & Matrix</span>
-              </button>
+            <h2 className="text-2xl sm:text-4xl font-black text-white font-heading">
+              Round {currentRoundNum} Not Started Yet
+            </h2>
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2 text-left sm:text-center">
+              <p className="text-xs sm:text-sm text-cyan-200 font-sans leading-relaxed">
+                प्रश्नावली सुरक्षितपणे कुलुपबंद (Locked) ठेवण्यात आली आहे. स्पर्धा समन्वयक (Coordinator / Admin) फेरी सुरू करताच प्रश्न थेट तुमच्या स्क्रीनवर आपोआप अनलॉक होतील.
+              </p>
+              <p className="text-[11px] sm:text-xs text-slate-400 font-mono">
+                Questions are locked to ensure fairness. Please remain on this screen — as soon as the coordinator launches Round {currentRoundNum}, your questions and 30-second timer will appear in real time automatically!
+              </p>
             </div>
           </div>
 
+          {/* Active Squad Card & Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-500/30 text-center space-y-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Active Squad</span>
+              <div className="text-lg sm:text-xl font-black text-white font-heading truncate">
+                {selectedTeam?.team_name || 'Verified Squad'}
+              </div>
+              <p className="text-[10px] font-mono text-cyan-400/80">Registered & Ready</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-center space-y-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Tournament Score</span>
+              <div className="text-lg sm:text-2xl font-black text-amber-300 font-mono">
+                {selectedTeam?.score || 0} <span className="text-xs font-normal text-slate-400">Pts</span>
+              </div>
+              <p className="text-[10px] font-mono text-amber-400/80">Overall Standing</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/30 text-center space-y-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Current Rank</span>
+              <div className="text-lg sm:text-2xl font-black text-emerald-300 font-mono flex items-center justify-center gap-1">
+                <Medal className="w-5 h-5 text-amber-400" />
+                <span>#{selectedTeam?.rank || 1}</span>
+              </div>
+              <p className="text-[10px] font-mono text-emerald-400/80">Live Leaderboard</p>
+            </div>
+          </div>
+
+          {/* Round Rules Briefing */}
+          <div className="max-w-2xl mx-auto p-4 rounded-2xl bg-slate-950/60 border border-slate-800 text-left space-y-2.5">
+            <span className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Zap className="w-4 h-4 text-cyan-400" />
+              <span>Round {currentRoundNum} Rules & Scoring Highlights</span>
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-slate-400">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span>6 Technical questions per round</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span>30-second live clock per question</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>Speed bonus for swift correct answers</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>Immediate auto-scoring & leaderboard sync</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Connection Status Pill */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Real-time Game Server Connected • Standing by for Coordinator Signal</span>
+          </div>
+
+          {/* Admin Control Shortcut (Visible only to authenticated Admin) */}
+          {isAuthenticated && (
+            <div className="max-w-md mx-auto p-4 rounded-2xl bg-amber-950/40 border border-amber-500/50 space-y-3">
+              <div className="text-xs font-mono font-bold text-amber-300 flex items-center justify-center gap-1.5">
+                <ShieldAlert className="w-4 h-4" />
+                <span>Admin Quick Action</span>
+              </div>
+              <p className="text-xs font-mono text-slate-300">
+                You are logged in as Administrator. You can start this round now:
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await api.controlGame('brain', { action: 'START_GAME', round: currentRoundNum });
+                  } catch (e) {
+                    alert(e.message);
+                  }
+                }}
+                className="w-full py-2.5 rounded-xl text-xs font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/25 transition-all"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>START ROUND {currentRoundNum} LIVE NOW</span>
+              </button>
+            </div>
+          )}
+
+          {/* Navigation Links */}
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage('live-dashboard')}
+              className="px-5 py-2.5 rounded-xl text-xs font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 hover:bg-cyan-900 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>View Live Tournament Dashboard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage('games')}
+              className="px-5 py-2.5 rounded-xl text-xs font-mono text-slate-300 bg-slate-900 border border-slate-800 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Game Rules & Guidelines</span>
+            </button>
+            <button
+              type="button"
+              onClick={logoutSquad}
+              className="px-4 py-2.5 rounded-xl text-xs font-mono text-slate-400 hover:text-rose-300 transition-colors cursor-pointer"
+            >
+              Switch Squad / Logout
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 3. QUESTION DISPLAY / PLAYING SCREEN */}
-      {!isTimeUp && !isStopped && (
+      {/* 3. QUESTION DISPLAY / PLAYING SCREEN (Strictly visible ONLY when Round is officially RUNNING) */}
+      {isRunning && !isStopped && !isTimeUp && (
         !activeQuestion ? (
           <div className="glass-card p-12 sm:p-20 rounded-3xl border border-slate-800 text-center space-y-4 animate-pulse">
             <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-cyan-400">

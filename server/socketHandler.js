@@ -20,7 +20,8 @@ export function setupSocketIO(io) {
       const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
       if (session) {
         let question = null;
-        if (session.current_question_id) {
+        // Anti-cheating: Only emit question if session is actively RUNNING
+        if (session.status === 'RUNNING' && session.current_question_id) {
           const rawQ = db.prepare('SELECT * FROM questions WHERE id = ?').get(session.current_question_id);
           if (rawQ) {
             let opts = [];
@@ -30,10 +31,11 @@ export function setupSocketIO(io) {
               opts = [];
             }
             question = { ...rawQ, options: opts };
+            delete question.correct_answer;
             if (game === 'pictionary') {
               question.question = 'Engineering Concept (Hidden from Participants)';
-              delete question.correct_answer;
             }
+          }
         }
         let team = null;
         if (session.current_team_id) {
@@ -84,7 +86,8 @@ export function broadcastSessionState(game) {
   try {
     const session = db.prepare('SELECT * FROM game_sessions WHERE game = ?').get(game);
     let question = null;
-    if (session && session.current_question_id) {
+    // Anti-cheating: Only broadcast active question when status is RUNNING
+    if (session && session.status === 'RUNNING' && session.current_question_id) {
       const rawQ = db.prepare('SELECT * FROM questions WHERE id = ?').get(session.current_question_id);
       if (rawQ) {
         let opts = [];
@@ -94,9 +97,9 @@ export function broadcastSessionState(game) {
           opts = [];
         }
         question = { ...rawQ, options: opts };
+        delete question.correct_answer;
         if (game === 'pictionary') {
           question.question = 'Engineering Concept (Hidden from Participants)';
-          delete question.correct_answer;
         }
       }
     }
