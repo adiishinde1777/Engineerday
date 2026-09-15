@@ -23,7 +23,8 @@ import {
   RefreshCw,
   AlertTriangle,
   Check,
-  Send
+  Send,
+  Play
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
 import { useSquad } from '../context/SquadContext';
@@ -43,6 +44,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   // All questions in the current round
   const [roundQuestions, setRoundQuestions] = useState([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [selectedRound, setSelectedRound] = useState(1);
 
   // Map of answers submitted by this team: { [questionId]: { is_correct, total_points, answer_text, time_bonus } }
   const [answeredMap, setAnsweredMap] = useState({});
@@ -84,10 +86,14 @@ export default function EngineersBrainPage({ setCurrentPage }) {
     }
   }, [currentSquad]);
 
-  // Fetch all questions for the current round
-  const fetchRoundQuestions = async (roundNum = 1) => {
+  // Fetch all questions for the current round (supports preview mode when round has not started live)
+  const fetchRoundQuestions = async (roundNum = 1, forcePreview = false) => {
     try {
-      const res = await api.getQuestions({ game: 'brain', round: roundNum });
+      const params = { game: 'brain', round: roundNum };
+      if (forcePreview || (!isRunning && !isAuthenticated)) {
+        params.preview = 'true';
+      }
+      const res = await api.getQuestions(params);
       if (res.success && Array.isArray(res.questions)) {
         setRoundQuestions(res.questions);
       }
@@ -122,10 +128,10 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   };
 
   const { session } = brainSession;
-  const currentRoundNum = session?.round || 1;
   const isTimeUp = session?.status === 'TIME_UP';
   const isStopped = session?.status === 'STOPPED' || session?.status === 'PAUSED' || Boolean(session?.is_paused && session?.status !== 'TIME_UP');
   const isRunning = session?.status === 'RUNNING' && !isTimeUp && !isStopped;
+  const currentRoundNum = (isRunning || isStopped || isTimeUp) ? (session?.round || 1) : selectedRound;
 
   // Helper to jump to first remaining (unanswered) question in this round
   const jumpToFirstRemainingQuestion = (questionsList, answersMapObj) => {
@@ -136,16 +142,14 @@ export default function EngineersBrainPage({ setCurrentPage }) {
     }
   };
 
-  // Initial fetch of questions for this round: ONLY when game is RUNNING, STOPPED (for standby preview if allowed), or admin is viewing
+  // Initial fetch of questions for this round
   useEffect(() => {
     if (isRunning || isAuthenticated) {
-      fetchRoundQuestions(currentRoundNum);
-    } else if (isStopped) {
-      // Keep round questions in memory if already fetched so progress breakdown shows
+      fetchRoundQuestions(currentRoundNum, false);
     } else {
-      setRoundQuestions([]);
+      fetchRoundQuestions(selectedRound, true);
     }
-  }, [isRunning, isStopped, isAuthenticated, currentRoundNum]);
+  }, [isRunning, isStopped, isAuthenticated, currentRoundNum, selectedRound]);
 
   // Fetch team details whenever selectedTeamId changes
   useEffect(() => {
@@ -290,8 +294,8 @@ export default function EngineersBrainPage({ setCurrentPage }) {
   })();
 
   const handleOptionSelect = async (option) => {
-    if (!isRunning || hasSubmittedCurrentQ || isSubmitting || !selectedTeamId || !activeQuestion) return;
     setSelectedOption(option);
+    if (!isRunning || hasSubmittedCurrentQ || isSubmitting || !selectedTeamId || !activeQuestion) return;
     submitAnswerToBackend(option);
   };
 
@@ -908,100 +912,120 @@ export default function EngineersBrainPage({ setCurrentPage }) {
         </div>
       )}
 
-      {/* 2. INITIAL SECURE HOLDING SCREEN (When game has not started yet) */}
+      {/* 2. ROUND PREVIEW & INTERACTIVE QUESTION ARENA (When official round is on standby) */}
       {!isRunning && !isStopped && !isTimeUp && (
-        <div className="glass-card p-8 sm:p-14 rounded-3xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 text-center space-y-8 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
-          {/* Ambient background glow */}
-          <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-          {/* Radar / Pulsing Lock Icon */}
-          <div className="relative mx-auto w-24 h-24">
-            <div className="absolute inset-0 rounded-3xl bg-cyan-500/20 border-2 border-cyan-500/40 animate-ping opacity-40"></div>
-            <div className="relative w-24 h-24 rounded-3xl bg-slate-950 border-2 border-cyan-400 flex items-center justify-center text-cyan-400 shadow-xl shadow-cyan-500/20">
-              <Lock className="w-10 h-10 animate-pulse" />
-            </div>
-          </div>
-
-          {/* Title & Advisory */}
-          <div className="space-y-3 max-w-xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold tracking-wider uppercase">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-              <span>GAME LOCKED • STANDBY FOR ADMIN</span>
-            </div>
-            <h2 className="text-2xl sm:text-4xl font-black text-white font-heading">
-              Round {currentRoundNum} Questions are Locked
-            </h2>
-            <p className="text-sm text-slate-300 leading-relaxed font-sans">
-              स्पर्धेची पारदर्शकता राखण्यासाठी Coordinator / Admin ने गेम Start करेपर्यंत सर्व प्रश्न सुरक्षितपणे लॉक ठेवण्यात आले आहेत. Admin ने गेम सुरू करताच प्रश्न आपोआप स्क्रीनवर दिसतील.
-            </p>
-            <p className="text-xs text-slate-400 font-mono">
-              (Questions and options will unlock automatically in real-time as soon as the admin starts the round from the control console.)
-            </p>
-          </div>
-
-          {/* Squad Readiness Card */}
-          <div className="max-w-md mx-auto p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4 text-left">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                <ShieldCheck className="w-5 h-5" />
+        <div className="glass-card p-5 sm:p-7 rounded-3xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-900/95 to-slate-950 space-y-5 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
+                <Brain className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[10px] font-mono text-slate-400 block uppercase">Active Squad</span>
-                <strong className="text-sm text-white font-heading truncate block max-w-[200px]">
-                  {selectedTeam?.team_name || 'Verified Squad'}
-                </strong>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                    ROUND {selectedRound} QUESTIONS ACTIVE
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    OFFICIAL LIVE TIMER ON STANDBY
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-white font-heading mt-0.5">
+                  Engineer's Brain: Round {selectedRound} Questions
+                </h2>
+                <p className="text-xs font-mono text-slate-400">
+                  Switch between Round 1 and Round 2 below. You can navigate questions and practice while waiting for the coordinator.
+                </p>
               </div>
             </div>
 
-            <div className="text-right">
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-950 border border-emerald-500/40 text-emerald-300 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Ready on Stage</span>
-              </span>
+            {/* Interactive Round Switcher Tabs */}
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => { setSelectedRound(1); setCurrentQIndex(0); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  selectedRound === 1 
+                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
+                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <span>Round 1 (6 Qs)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setSelectedRound(2); setCurrentQIndex(0); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  selectedRound === 2 
+                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
+                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <span>Round 2 (6 Qs)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setSelectedRound(3); setCurrentQIndex(0); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  selectedRound === 3 
+                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
+                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <span>Round 3 (4 Qs)</span>
+              </button>
+
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await api.controlGame('brain', { action: 'START_GAME', round: selectedRound });
+                    } catch (e) {
+                      alert(e.message);
+                    }
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-mono font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/25"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Start Round {selectedRound} Live</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Event Rules Mini Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto text-xs font-mono text-slate-300">
-            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span>6 Technical Qs</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-slate-400">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              <span>Browsing Question {currentQIndex + 1} of {roundQuestions.length || 6}</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Speed Bonus Points</span>
-            </div>
-            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center gap-2">
-              <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Live Leaderboard</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCurrentPage('live-dashboard')}
+                className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Live Dashboard</span>
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage('games')}
+                className="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+              >
+                <span>Rules & Matrix</span>
+              </button>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => setCurrentPage('live-dashboard')}
-              className="px-5 py-2.5 rounded-xl text-xs font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 hover:bg-cyan-900 transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>View Live Scoreboard</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentPage('games')}
-              className="px-5 py-2.5 rounded-xl text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Back to Games Rules</span>
-            </button>
-          </div>
         </div>
       )}
 
       {/* 3. QUESTION DISPLAY / PLAYING SCREEN */}
-      {isRunning && (
+      {!isTimeUp && !isStopped && (
         !activeQuestion ? (
           <div className="glass-card p-12 sm:p-20 rounded-3xl border border-slate-800 text-center space-y-4 animate-pulse">
             <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-cyan-400">
@@ -1091,7 +1115,12 @@ export default function EngineersBrainPage({ setCurrentPage }) {
                     </div>
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <div className="px-3.5 py-2 rounded-xl border border-cyan-500/30 bg-slate-950 text-cyan-300 text-xs font-mono font-bold flex items-center gap-2 shadow-md">
+                  <Clock className="w-4 h-4 text-cyan-400" />
+                  <span>{activeQuestion.time_limit || 30}s per Question</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1143,7 +1172,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {optionsList.map((option, idx) => {
                 const isSelected = selectedOption === option || currentQAnsweredInfo?.answer_text === option;
-                const isLocked = !isRunning || hasSubmittedCurrentQ || isSubmitting;
+                const isLocked = (isRunning && hasSubmittedCurrentQ) || isSubmitting;
 
                 let btnStyles = 'bg-slate-950/80 border-slate-800 text-slate-200 hover:border-cyan-500/50 hover:bg-slate-900';
                 if (hasSubmittedCurrentQ) {
@@ -1178,7 +1207,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
               <div className="flex gap-3">
                 <input
                   type="text"
-                  disabled={!isRunning || hasSubmittedCurrentQ || isSubmitting}
+                  disabled={(isRunning && hasSubmittedCurrentQ) || isSubmitting}
                   placeholder="Type your final answer..."
                   value={textAnswer}
                   onChange={(e) => setTextAnswer(e.target.value)}
@@ -1186,7 +1215,7 @@ export default function EngineersBrainPage({ setCurrentPage }) {
                 />
                 <button
                   type="submit"
-                  disabled={!isRunning || hasSubmittedCurrentQ || isSubmitting || !textAnswer.trim()}
+                  disabled={hasSubmittedCurrentQ || isSubmitting || !textAnswer.trim()}
                   className="px-8 py-4 rounded-2xl font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono text-sm transition-all disabled:opacity-50 cursor-pointer"
                 >
                   Submit

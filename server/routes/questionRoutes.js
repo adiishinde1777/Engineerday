@@ -11,10 +11,12 @@ router.get('/', (req, res) => {
   const isAdmin = checkIsAdmin(req);
 
   // Anti-cheating: If requested for a specific game by non-admin,
-  // do NOT release any questions until admin officially starts the game!
-  if (!isAdmin && game && game !== 'all') {
+  // allow release if admin started game, or if preview requested (without answers)
+  const isPreview = req.query.preview === 'true' || req.query.allow_preview === 'true';
+  if (!isAdmin && game && game !== 'all' && !isPreview) {
     const session = db.prepare('SELECT status FROM game_sessions WHERE game = ?').get(game);
-    if (!session || session.status !== 'RUNNING') {
+    const allowedStatuses = ['RUNNING', 'STOPPED', 'PAUSED', 'ROUND_ENDED', 'TIME_UP'];
+    if (!session || !allowedStatuses.includes(session.status)) {
       return res.json({
         success: true,
         count: 0,
@@ -47,7 +49,24 @@ router.get('/', (req, res) => {
   }
 
   sql += ' ORDER BY game ASC, round ASC, created_at ASC';
-  const questions = db.prepare(sql).all(...params);
+  
+  let questions = [];
+  try {
+    questions = db.prepare(sql).all(...params);
+  } catch (err) {
+    if (err.message && err.message.includes('is_deleted')) {
+      try {
+        db.exec('ALTER TABLE questions ADD COLUMN is_deleted INTEGER DEFAULT 0;');
+        db.exec('ALTER TABLE questions ADD COLUMN deleted_at TEXT;');
+        questions = db.prepare(sql).all(...params);
+      } catch {
+        const fallbackSql = sql.replace('WHERE (is_deleted = 0 OR is_deleted IS NULL)', 'WHERE 1=1');
+        questions = db.prepare(fallbackSql).all(...params);
+      }
+    } else {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  }
 
   // Parse options_json and sanitize correct_answer for players
   const formatted = questions.map((q) => {

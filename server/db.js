@@ -104,14 +104,6 @@ export function initDB() {
   try {
     db.exec('ALTER TABLE faculty ADD COLUMN deleted_at TEXT;');
   } catch {}
-  try {
-    db.exec('ALTER TABLE questions ADD COLUMN is_deleted INTEGER DEFAULT 0;');
-  } catch {}
-  try {
-    db.exec('ALTER TABLE questions ADD COLUMN deleted_at TEXT;');
-  } catch {}
-
-
   db.exec(`
     CREATE TABLE IF NOT EXISTS questions (
       id TEXT PRIMARY KEY,
@@ -124,6 +116,8 @@ export function initDB() {
       time_limit INTEGER NOT NULL DEFAULT 30,
       base_points INTEGER NOT NULL DEFAULT 10,
       image_url TEXT,
+      is_deleted INTEGER DEFAULT 0,
+      deleted_at TEXT,
       created_at TEXT NOT NULL
     );
 
@@ -155,6 +149,12 @@ export function initDB() {
     );
   `);
 
+  try {
+    db.exec('ALTER TABLE questions ADD COLUMN is_deleted INTEGER DEFAULT 0;');
+  } catch {}
+  try {
+    db.exec('ALTER TABLE questions ADD COLUMN deleted_at TEXT;');
+  } catch {}
   try {
     db.exec('ALTER TABLE game_sessions ADD COLUMN started_at TEXT;');
   } catch {}

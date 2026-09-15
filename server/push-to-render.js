@@ -25,7 +25,21 @@ export async function pushToRender() {
     return;
   }
 
-  // 2. Send to Render API endpoint
+  // 2. Read questions and game sessions from local SQLite
+  let questions = [];
+  try {
+    questions = db.prepare('SELECT * FROM questions WHERE (is_deleted = 0 OR is_deleted IS NULL)').all();
+    console.log(`📚 Found ${questions.length} questions in local database to push to Render.`);
+  } catch (e) {
+    console.warn('Could not read local questions:', e.message);
+  }
+
+  let gameSessions = [];
+  try {
+    gameSessions = db.prepare('SELECT * FROM game_sessions').all();
+  } catch {}
+
+  // 3. Send to Render API endpoint
   try {
     const settingsRows = db.prepare('SELECT key, value FROM event_settings').all();
     const eventSettings = {};
@@ -34,12 +48,12 @@ export async function pushToRender() {
     const res = await fetch(`${RENDER_API_URL}/api/teams/sync-push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teams, eventSettings })
+      body: JSON.stringify({ teams, eventSettings, questions, gameSessions })
     });
 
     const data = await res.json();
     if (data.success) {
-      console.log(`\n🎉 SUCCESS! Pushed ${data.count || teams.length} teams to Render live website!`);
+      console.log(`\n🎉 SUCCESS! Pushed ${data.count || teams.length} teams & ${questions.length} questions to Render live website!`);
     } else {
       console.error(`\n❌ Render sync response error:`, data.message || data);
     }

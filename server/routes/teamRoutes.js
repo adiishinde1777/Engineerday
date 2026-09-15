@@ -858,7 +858,7 @@ router.post('/webhook', (req, res) => {
 
 // POST Push teams to sync between local DB and live site
 router.post('/sync-push', (req, res) => {
-  const { teams, eventSettings } = req.body || {};
+  const { teams, eventSettings, questions, gameSessions } = req.body || {};
   if (eventSettings && typeof eventSettings === 'object') {
     const upsertSetting = db.prepare(`
       INSERT INTO event_settings (key, value) VALUES (?, ?)
@@ -869,6 +869,72 @@ router.post('/sync-push', (req, res) => {
         upsertSetting.run(k, String(v));
       }
     });
+  }
+
+  // Sync questions if provided
+  if (Array.isArray(questions) && questions.length > 0) {
+    try {
+      db.exec('ALTER TABLE questions ADD COLUMN is_deleted INTEGER DEFAULT 0;');
+      db.exec('ALTER TABLE questions ADD COLUMN deleted_at TEXT;');
+    } catch {}
+
+    const upsertQ = db.prepare(`
+      INSERT INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, is_deleted, deleted_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        game = excluded.game,
+        round = excluded.round,
+        question = excluded.question,
+        type = excluded.type,
+        options_json = excluded.options_json,
+        correct_answer = excluded.correct_answer,
+        time_limit = excluded.time_limit,
+        base_points = excluded.base_points,
+        image_url = excluded.image_url,
+        is_deleted = excluded.is_deleted,
+        deleted_at = excluded.deleted_at
+    `);
+
+    for (const q of questions) {
+      try {
+        upsertQ.run(
+          q.id,
+          q.game,
+          Number(q.round),
+          q.question,
+          q.type,
+          typeof q.options_json === 'string' ? q.options_json : JSON.stringify(q.options || []),
+          q.correct_answer,
+          Number(q.time_limit) || 30,
+          Number(q.base_points) || 10,
+          q.image_url || '',
+          q.is_deleted ? 1 : 0,
+          q.deleted_at || null,
+          q.created_at || new Date().toISOString()
+        );
+      } catch (err) {
+        console.warn('Sync question error for', q.id, err.message);
+      }
+    }
+  }
+
+  // Sync game sessions if provided
+  if (Array.isArray(gameSessions)) {
+    const upsertSession = db.prepare(`
+      INSERT INTO game_sessions (game, round, current_question_id, status, timer_remaining, is_paused)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(game) DO UPDATE SET
+        round = excluded.round,
+        current_question_id = excluded.current_question_id,
+        status = excluded.status,
+        timer_remaining = excluded.timer_remaining,
+        is_paused = excluded.is_paused
+    `);
+    for (const s of gameSessions) {
+      try {
+        upsertSession.run(s.game, s.round, s.current_question_id || null, s.status || 'IDLE', s.timer_remaining || 30, s.is_paused || 0);
+      } catch {}
+    }
   }
 
   if (!Array.isArray(teams)) {
