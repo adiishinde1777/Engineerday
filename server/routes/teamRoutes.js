@@ -878,6 +878,14 @@ router.post('/sync-push', (req, res) => {
       db.exec('ALTER TABLE questions ADD COLUMN deleted_at TEXT;');
     } catch {}
 
+    const allowedBrainIds = [
+      'q-b1-1', 'q-b1-2', 'q-b1-3', 'q-b1-4', 'q-b1-5', 'q-b1-6',
+      'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6'
+    ];
+    try {
+      db.prepare(`DELETE FROM questions WHERE game = 'brain' AND id NOT IN (${allowedBrainIds.map(() => '?').join(',')})`).run(...allowedBrainIds);
+    } catch {}
+
     const upsertQ = db.prepare(`
       INSERT INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, is_deleted, deleted_at, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
