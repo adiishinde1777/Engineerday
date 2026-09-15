@@ -564,12 +564,12 @@ function seedDefaultData() {
       imageUrl: ''
     },
 
-    // PICTIONARY ROUND 1 (Tools & Core Concepts)
+    // PICTIONARY ROUND 1 (Tools & Core Concepts - Words hidden from participants)
     {
       id: 'q-p1-1',
       game: 'pictionary',
       round: 1,
-      question: 'Oscilloscope (Electronic Test Instrument)',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'Electronics',
       options: '[]',
       answer: 'Oscilloscope',
@@ -581,7 +581,7 @@ function seedDefaultData() {
       id: 'q-p1-2',
       game: 'pictionary',
       round: 1,
-      question: 'Wind Turbine & Renewable Generator',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'Mechanical / Electrical',
       options: '[]',
       answer: 'Wind Turbine',
@@ -593,7 +593,7 @@ function seedDefaultData() {
       id: 'q-p1-3',
       game: 'pictionary',
       round: 1,
-      question: 'Suspension Bridge (Cable Stayed)',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'Civil',
       options: '[]',
       answer: 'Suspension Bridge',
@@ -602,12 +602,12 @@ function seedDefaultData() {
       imageUrl: ''
     },
 
-    // PICTIONARY ROUND 2 (Modern Tech & Hardware)
+    // PICTIONARY ROUND 2 (Modern Tech & Hardware - Words hidden from participants)
     {
       id: 'q-p2-1',
       game: 'pictionary',
       round: 2,
-      question: 'Microchip / Silicon Wafer',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'VLSI / Semiconductor',
       options: '[]',
       answer: 'Microchip',
@@ -619,7 +619,7 @@ function seedDefaultData() {
       id: 'q-p2-2',
       game: 'pictionary',
       round: 2,
-      question: 'Robotic Arm / Industrial Manipulator',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'Robotics',
       options: '[]',
       answer: 'Robotic Arm',
@@ -631,7 +631,7 @@ function seedDefaultData() {
       id: 'q-p2-3',
       game: 'pictionary',
       round: 2,
-      question: 'Satellite Dish & Space Communication',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'Telecommunication',
       options: '[]',
       answer: 'Satellite Dish',
@@ -640,12 +640,12 @@ function seedDefaultData() {
       imageUrl: ''
     },
 
-    // PICTIONARY ROUND 3 (Advanced Systems)
+    // PICTIONARY ROUND 3 (Advanced Systems - Words hidden from participants)
     {
       id: 'q-p3-1',
       game: 'pictionary',
       round: 3,
-      question: 'Neural Network / Artificial Intelligence Brain',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'AI / Computer',
       options: '[]',
       answer: 'Neural Network',
@@ -657,7 +657,7 @@ function seedDefaultData() {
       id: 'q-p3-2',
       game: 'pictionary',
       round: 3,
-      question: '3D Printer / Additive Manufacturing',
+      question: 'Secret Engineering Concept (Hidden from Participants)',
       type: 'Engineering Tools',
       options: '[]',
       answer: '3D Printer',
