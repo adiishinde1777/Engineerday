@@ -68,7 +68,7 @@ router.get('/', (req, res) => {
     }
   }
 
-  // Parse options_json and sanitize correct_answer for players
+  // Parse options_json and sanitize correct_answer & secret concepts for players
   const formatted = questions.map((q) => {
     let opts = [];
     try {
@@ -79,6 +79,9 @@ router.get('/', (req, res) => {
     const sanitized = { ...q, options: opts };
     if (!isAdmin) {
       delete sanitized.correct_answer;
+      if (sanitized.game === 'pictionary') {
+        sanitized.question = 'Engineering Concept (Hidden from Participants)';
+      }
     }
     return sanitized;
   });
@@ -111,6 +114,9 @@ router.get('/:id', (req, res) => {
   const sanitized = { ...q, options: opts };
   if (!isAdmin) {
     delete sanitized.correct_answer;
+    if (sanitized.game === 'pictionary') {
+      sanitized.question = 'Engineering Concept (Hidden from Participants)';
+    }
   }
   return res.json({ success: true, question: sanitized });
 });

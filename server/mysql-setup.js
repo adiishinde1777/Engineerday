@@ -218,12 +218,34 @@ export async function setupMySQL() {
         }
 
         // Migrate Questions
+        const allowedBrainIds = [
+          'q-b1-1', 'q-b1-2', 'q-b1-3', 'q-b1-4', 'q-b1-5', 'q-b1-6',
+          'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6'
+        ];
+        try {
+          await connection.query(
+            `DELETE FROM questions WHERE game = 'brain' AND id NOT IN (${allowedBrainIds.map(() => '?').join(',')})`,
+            allowedBrainIds
+          );
+        } catch {}
+
         const questions = sqlite.prepare('SELECT * FROM questions').all();
         for (const q of questions) {
           await connection.query(
-            `INSERT IGNORE INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [q.id, q.game, q.round, q.question, q.type, q.options_json, q.correct_answer, q.time_limit, q.base_points, q.image_url, q.created_at]
+            `INSERT INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, is_deleted, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               game = VALUES(game),
+               round = VALUES(round),
+               question = VALUES(question),
+               type = VALUES(type),
+               options_json = VALUES(options_json),
+               correct_answer = VALUES(correct_answer),
+               time_limit = VALUES(time_limit),
+               base_points = VALUES(base_points),
+               image_url = VALUES(image_url),
+               is_deleted = VALUES(is_deleted)`,
+            [q.id, q.game, q.round, q.question, q.type, q.options_json, q.correct_answer, q.time_limit, q.base_points, q.image_url, q.is_deleted || 0, q.created_at]
           );
         }
 

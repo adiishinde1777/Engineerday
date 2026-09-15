@@ -10,8 +10,10 @@ const __dirname = path.dirname(__filename);
 const dbPath = path.join(__dirname, '..', 'engineers_day.db');
 const db = new DatabaseSync(dbPath);
 
-// Enable WAL mode for high concurrency
+// Enable WAL mode and busy timeout for high concurrency
 db.exec('PRAGMA journal_mode = WAL;');
+db.exec('PRAGMA busy_timeout = 5000;');
+db.exec('PRAGMA synchronous = NORMAL;');
 
 // Initialize Tables
 export function initDB() {
@@ -215,6 +217,10 @@ function seedDefaultData() {
   `);
   insertScoring.run('brain', 10, 180, 0, 5, 4, 3, 2, 1, 0, 'correct_then_time');
   insertScoring.run('pictionary', 10, 30, 0, 5, 4, 3, 2, 1, 0, 'correct_then_time');
+  try {
+    db.prepare("UPDATE scoring_settings SET base_points = 10, timer_duration = 180 WHERE game = 'brain'").run();
+    db.prepare("UPDATE scoring_settings SET base_points = 10, timer_duration = 30 WHERE game = 'pictionary'").run();
+  } catch {}
 
   // Game sessions initialize
   const insertSession = db.prepare(`
@@ -223,6 +229,10 @@ function seedDefaultData() {
   `);
   insertSession.run('brain');
   insertSession.run('pictionary');
+  try {
+    db.prepare("UPDATE game_sessions SET timer_remaining = 180 WHERE game = 'brain' AND status = 'IDLE'").run();
+    db.prepare("UPDATE game_sessions SET timer_remaining = 30 WHERE game = 'pictionary' AND status = 'IDLE'").run();
+  } catch {}
 
   // Reset & Seed Department Faculty: Electronics Engineering (VLSI Design and Technology)
   const seedFaculty = [
@@ -399,467 +409,306 @@ function seedDefaultData() {
   // Restore teams from persistent backup file so registrations are never lost across restarts/refreshes
   restoreTeamsFromBackup();
 
-  // Seed Questions for Engineer's Brain & Engineering Pictionary
-  const qCheck = db.prepare('SELECT count(*) as count FROM questions').get();
-  if (!qCheck || qCheck.count === 0) {
-    const insertQ = db.prepare(`
-      INSERT INTO questions 
-      (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  // Seed and enforce exact questions for Engineer's Brain (6 in Round 1, 6 in Round 2) and Engineering Pictionary
+  const officialQuestions = [
+    // BRAIN ROUND 1 (Official Tournament MCQs)
+    {
+      id: 'q-b1-1',
+      game: 'brain',
+      round: 1,
+      question: 'If ELECTRONICS is coded as FMFDUSPOJDT, how is DIGITAL coded using the same pattern?',
+      type: 'Logical Reasoning',
+      options: JSON.stringify(['EJHJUBM', 'EJGJUBM', 'EJFJUBM', 'DJHITZL']),
+      answer: 'EJHJUBM',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b1-2',
+      game: 'brain',
+      round: 1,
+      question: 'Find the Output:\n\n#include <stdio.h>\n\nint main() {\n    int A = 1, B = 0, C = 1, D = 1;\n\n    int X = A && B;\n    int Y = C || D;\n    int Z = !(X || Y);\n    int P = Z ^ A;\n    int Q = P && D;\n\n    printf("%d", Q);\n\n    return 0;\n}',
+      type: 'C Programming',
+      options: JSON.stringify(['0', '1', '2', 'Error']),
+      answer: '1',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b1-3',
+      game: 'brain',
+      round: 1,
+      question: 'For an ideal Class-B push-pull amplifier, the maximum theoretical efficiency is approximately:',
+      type: 'Analog Electronics',
+      options: JSON.stringify(['25%', '75.5%', '78.5%', '100%']),
+      answer: '78.5%',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b1-4',
+      game: 'brain',
+      round: 1,
+      question: 'What does Moore’s Law state?',
+      type: 'Semiconductor / VLSI',
+      options: JSON.stringify([
+        'Processor speed doubles every 5 years',
+        'The number of transistors on an integrated circuit approximately doubles every 18–24 months',
+        'Power consumption doubles every 6 months',
+        'The number of transistors on an integrated circuit approximately doubles every 6 months'
+      ]),
+      answer: 'The number of transistors on an integrated circuit approximately doubles every 18–24 months',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b1-5',
+      game: 'brain',
+      round: 1,
+      question: 'In the given figure if PQ || ST, angle PQR = 110° and angle RST = 130°, then angle QRS = ?',
+      type: 'Engineering Geometry',
+      options: JSON.stringify(['80', '60', '30', '100']),
+      answer: '60',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: '/images/brain/q-b1-5.jpg'
+    },
+    {
+      id: 'q-b1-6',
+      game: 'brain',
+      round: 1,
+      question: 'Solve the definite integral shown in the figure:',
+      type: 'Applied Mathematics',
+      options: JSON.stringify(['2', '-1', '-2', '1']),
+      answer: '-1',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: '/images/brain/q-b1-6.jpg'
+    },
 
-    const seedQuestions = [
-      // BRAIN ROUND 1 (Official Tournament MCQs)
-      {
-        id: 'q-b1-1',
-        game: 'brain',
-        round: 1,
-        question: 'Which component opposes the flow of electric current?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['Capacitor', 'Resistor', 'Inductor', 'Diode']),
-        answer: 'Resistor',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b1-2',
-        game: 'brain',
-        round: 1,
-        question: "A 4-bit binary number is 1011. What is its 2's complement?",
-        type: 'Digital Logic',
-        options: JSON.stringify(['0100', '0101', '1010', '0110']),
-        answer: '0101',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b1-3',
-        game: 'brain',
-        round: 1,
-        question: 'Which material is most widely used in semiconductor manufacturing?',
-        type: 'Semiconductor',
-        options: JSON.stringify(['Copper', 'Silicon', 'Aluminium', 'Silver']),
-        answer: 'Silicon',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b1-4',
-        game: 'brain',
-        round: 1,
-        question: "Engineers' Day in India is celebrated on the birth anniversary of which engineer?",
-        type: 'Famous Engineer 🇮🇳',
-        options: JSON.stringify(['Dr. A. P. J. Abdul Kalam', 'Sir M. Visvesvaraya', 'Homi J. Bhabha', 'Vikram Sarabhai']),
-        answer: 'Sir M. Visvesvaraya',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b1-5',
-        game: 'brain',
-        round: 1,
-        question: 'Pointing to a man, Rahul said: "He is the son of the only son of my grandfather." Who is the man to Rahul?',
-        type: 'Family Relation',
-        options: JSON.stringify(['Father', 'Brother', 'Uncle', 'Cousin']),
-        answer: 'Brother',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b1-6',
-        game: 'brain',
-        round: 1,
-        question: 'What is the valence electron count of silicon?',
-        type: 'Basic Semiconductor Physics',
-        options: JSON.stringify(['4', '8', '5', 'None of the above']),
-        answer: '4',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
+    // BRAIN ROUND 2 (Applied Engineering & Hardware)
+    {
+      id: 'q-b2-1',
+      game: 'brain',
+      round: 2,
+      question: 'Which hardware is especially designed for parallel AI calculations?',
+      type: 'AI Hardware / GPU',
+      options: JSON.stringify(['GPU', 'Keyboard', 'Printer', 'Relay']),
+      answer: 'GPU',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b2-2',
+      game: 'brain',
+      round: 2,
+      question: 'A combinational circuit has no:',
+      type: 'Digital Logic',
+      options: JSON.stringify(['Inputs', 'Outputs', 'Memory', 'Logic gates']),
+      answer: 'Memory',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b2-3',
+      game: 'brain',
+      round: 2,
+      question: 'if x + (1/x) = 3 ,  then find  [ x^2 + (1/x^2) ]',
+      type: 'Algebraic Identity',
+      options: JSON.stringify(['5', '10', '7', '9']),
+      answer: '7',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b2-4',
+      game: 'brain',
+      round: 2,
+      question: 'A combinational circuit has 4 inputs and 2 outputs. Which device could perform this function?',
+      type: 'Digital Electronics',
+      options: JSON.stringify(['4-to-2 Decoder', '4-to-2 Encoder', '4-bit Counter', '2-bit Comparator']),
+      answer: '4-to-2 Encoder',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b2-5',
+      game: 'brain',
+      round: 2,
+      question: 'Which memory is volatile?',
+      type: 'Computer Architecture',
+      options: JSON.stringify(['ROM', 'Flash memory', 'RAM', 'EEPROM']),
+      answer: 'RAM',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b2-6',
+      game: 'brain',
+      round: 2,
+      question: 'Two Capacitor of 6 farad  each are connected in parallel. Their equivalent resistance is:',
+      type: 'Passive Components',
+      options: JSON.stringify(['12 farad', '6 farad', '3 farad', '1.5 farad']),
+      answer: '12 farad',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
 
-      // PICTIONARY ROUND 1 (Tools & Core Concepts)
-      {
-        id: 'q-p1-1',
-        game: 'pictionary',
-        round: 1,
-        question: 'Oscilloscope (Electronic Test Instrument)',
-        type: 'Electronics',
-        options: '[]',
-        answer: 'Oscilloscope',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-p1-2',
-        game: 'pictionary',
-        round: 1,
-        question: 'Wind Turbine & Renewable Generator',
-        type: 'Mechanical / Electrical',
-        options: '[]',
-        answer: 'Wind Turbine',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-p1-3',
-        game: 'pictionary',
-        round: 1,
-        question: 'Suspension Bridge (Cable Stayed)',
-        type: 'Civil',
-        options: '[]',
-        answer: 'Suspension Bridge',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
+    // PICTIONARY ROUND 1 (Tools & Core Concepts)
+    {
+      id: 'q-p1-1',
+      game: 'pictionary',
+      round: 1,
+      question: 'Oscilloscope (Electronic Test Instrument)',
+      type: 'Electronics',
+      options: '[]',
+      answer: 'Oscilloscope',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-p1-2',
+      game: 'pictionary',
+      round: 1,
+      question: 'Wind Turbine & Renewable Generator',
+      type: 'Mechanical / Electrical',
+      options: '[]',
+      answer: 'Wind Turbine',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-p1-3',
+      game: 'pictionary',
+      round: 1,
+      question: 'Suspension Bridge (Cable Stayed)',
+      type: 'Civil',
+      options: '[]',
+      answer: 'Suspension Bridge',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
 
-      // PICTIONARY ROUND 2 (Modern Tech & Hardware)
-      {
-        id: 'q-p2-1',
-        game: 'pictionary',
-        round: 2,
-        question: 'Microchip / Silicon Wafer',
-        type: 'VLSI / Semiconductor',
-        options: '[]',
-        answer: 'Microchip',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-p2-2',
-        game: 'pictionary',
-        round: 2,
-        question: 'Robotic Arm / Industrial Manipulator',
-        type: 'Robotics',
-        options: '[]',
-        answer: 'Robotic Arm',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-p2-3',
-        game: 'pictionary',
-        round: 2,
-        question: 'Satellite Dish & Space Communication',
-        type: 'Telecommunication',
-        options: '[]',
-        answer: 'Satellite Dish',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
+    // PICTIONARY ROUND 2 (Modern Tech & Hardware)
+    {
+      id: 'q-p2-1',
+      game: 'pictionary',
+      round: 2,
+      question: 'Microchip / Silicon Wafer',
+      type: 'VLSI / Semiconductor',
+      options: '[]',
+      answer: 'Microchip',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-p2-2',
+      game: 'pictionary',
+      round: 2,
+      question: 'Robotic Arm / Industrial Manipulator',
+      type: 'Robotics',
+      options: '[]',
+      answer: 'Robotic Arm',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-p2-3',
+      game: 'pictionary',
+      round: 2,
+      question: 'Satellite Dish & Space Communication',
+      type: 'Telecommunication',
+      options: '[]',
+      answer: 'Satellite Dish',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
 
-      // PICTIONARY ROUND 3 (Advanced Systems)
-      {
-        id: 'q-p3-1',
-        game: 'pictionary',
-        round: 3,
-        question: 'Neural Network / Artificial Intelligence Brain',
-        type: 'AI / Computer',
-        options: '[]',
-        answer: 'Neural Network',
-        timeLimit: 30,
-        basePoints: 15,
-        imageUrl: ''
-      },
-      {
-        id: 'q-p3-2',
-        game: 'pictionary',
-        round: 3,
-        question: '3D Printer / Additive Manufacturing',
-        type: 'Engineering Tools',
-        options: '[]',
-        answer: '3D Printer',
-        timeLimit: 30,
-        basePoints: 15,
-        imageUrl: ''
-      }
-    ];
-
-    for (const q of seedQuestions) {
-      insertQ.run(
-        q.id,
-        q.game,
-        q.round,
-        q.question,
-        q.type,
-        q.options,
-        q.answer,
-        q.timeLimit,
-        q.basePoints,
-        q.imageUrl,
-        new Date().toISOString()
-      );
+    // PICTIONARY ROUND 3 (Advanced Systems)
+    {
+      id: 'q-p3-1',
+      game: 'pictionary',
+      round: 3,
+      question: 'Neural Network / Artificial Intelligence Brain',
+      type: 'AI / Computer',
+      options: '[]',
+      answer: 'Neural Network',
+      timeLimit: 30,
+      basePoints: 15,
+      imageUrl: ''
+    },
+    {
+      id: 'q-p3-2',
+      game: 'pictionary',
+      round: 3,
+      question: '3D Printer / Additive Manufacturing',
+      type: 'Engineering Tools',
+      options: '[]',
+      answer: '3D Printer',
+      timeLimit: 30,
+      basePoints: 15,
+      imageUrl: ''
     }
-  }
+  ];
 
-  // Ensure Brain Round 2 and Round 3 questions exist
-  const brainR2Check = db.prepare("SELECT count(*) as count FROM questions WHERE game = 'brain' AND round = 2").get();
-  if (!brainR2Check || brainR2Check.count === 0) {
-    const insertQ = db.prepare(`
-      INSERT INTO questions 
-      (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  // 1. Delete any excess or outdated brain questions
+  const allowedBrainIds = [
+    'q-b1-1', 'q-b1-2', 'q-b1-3', 'q-b1-4', 'q-b1-5', 'q-b1-6',
+    'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6'
+  ];
+  db.prepare(`
+    DELETE FROM questions 
+    WHERE game = 'brain' AND id NOT IN (${allowedBrainIds.map(() => '?').join(',')})
+  `).run(...allowedBrainIds);
 
-    const additionalBrainQuestions = [
-      // BRAIN ROUND 2 (Official Tournament MCQs)
-      {
-        id: 'q-b2-1',
-        game: 'brain',
-        round: 2,
-        question: 'Which hardware is especially designed for parallel AI calculations?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['GPU', 'Keyboard', 'Printer', 'Relay']),
-        answer: 'GPU',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-2',
-        game: 'brain',
-        round: 2,
-        question: 'A combinational circuit has no:',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['Inputs', 'Outputs', 'Memory', 'Logic gates']),
-        answer: 'Memory',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-3',
-        game: 'brain',
-        round: 2,
-        question: 'if x + (1/x) = 3 ,  then find  [ x^2 + (1/x^2) ]',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['5', '10', '7', '9']),
-        answer: '7',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-4',
-        game: 'brain',
-        round: 2,
-        question: 'A combinational circuit has 4 inputs and 2 outputs. Which device could perform this function?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['4-to-2 Decoder', '4-to-2 Encoder', '4-bit Counter', '2-bit Comparator']),
-        answer: '4-to-2 Encoder',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-5',
-        game: 'brain',
-        round: 2,
-        question: 'Which memory is volatile?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['ROM', 'Flash memory', 'RAM', 'EEPROM']),
-        answer: 'RAM',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-6',
-        game: 'brain',
-        round: 2,
-        question: 'Two Capacitor of 6 farad  each are connected in parallel. Their equivalent resistance is:',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['12 farad', '6 farad', '3 farad', '1.5 farad']),
-        answer: '12 farad',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
+  // 2. Upsert each official question so newest prompts, options, answers, and images are saved
+  const upsertQ = db.prepare(`
+    INSERT INTO questions 
+    (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, is_deleted, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      game = excluded.game,
+      round = excluded.round,
+      question = excluded.question,
+      type = excluded.type,
+      options_json = excluded.options_json,
+      correct_answer = excluded.correct_answer,
+      time_limit = excluded.time_limit,
+      base_points = excluded.base_points,
+      image_url = excluded.image_url,
+      is_deleted = 0
+  `);
 
-      // BRAIN ROUND 3 (Mastermind VLSI & Hardware Architecture Finals)
-      {
-        id: 'q-b3-1',
-        game: 'brain',
-        round: 3,
-        question: 'In VLSI physical layout, which Design Rule Check (DRC) prevents interconnect metal lines from short-circuiting?',
-        type: 'VLSI Layout / DRC',
-        options: JSON.stringify(['Minimum Spacing Rule', 'Antenna Ratio Rule', 'Latch-up Prevention Rule', 'Minimum Enclosure Rule']),
-        answer: 'Minimum Spacing Rule',
-        timeLimit: 30,
-        basePoints: 15,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b3-2',
-        game: 'brain',
-        round: 3,
-        question: 'What is Moore’s Law primarily related to in semiconductor engineering?',
-        type: 'Semiconductor Industry',
-        options: JSON.stringify([
-          'Doubling of transistors on a microchip approximately every 2 years',
-          'Halving of computer memory storage capacity every year',
-          'Clock frequency quadrupling every 6 months',
-          'Total power consumption halving every decade'
-        ]),
-        answer: 'Doubling of transistors on a microchip approximately every 2 years',
-        timeLimit: 30,
-        basePoints: 15,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b3-3',
-        game: 'brain',
-        round: 3,
-        question: 'Which Hardware Description Language (HDL) is universally standard in modern ASIC/FPGA digital design?',
-        type: 'Digital Hardware Design',
-        options: JSON.stringify(['Verilog / VHDL', 'HTML / CSS', 'Python / Django', 'SQL / SQLite']),
-        answer: 'Verilog / VHDL',
-        timeLimit: 30,
-        basePoints: 15,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b3-4',
-        game: 'brain',
-        round: 3,
-        question: 'In flip-flop timing analysis, what is the minimum time data must remain stable BEFORE the active clock edge?',
-        type: 'Sequential Timing',
-        options: JSON.stringify(['Setup Time (Tsetup)', 'Hold Time (Thold)', 'Propagation Delay (Tpd)', 'Clock Jitter']),
-        answer: 'Setup Time (Tsetup)',
-        timeLimit: 30,
-        basePoints: 15,
-        imageUrl: ''
-      }
-    ];
-
-    for (const q of additionalBrainQuestions) {
-      insertQ.run(
-        q.id,
-        q.game,
-        q.round,
-        q.question,
-        q.type,
-        q.options,
-        q.answer,
-        q.timeLimit,
-        q.basePoints,
-        q.imageUrl,
-        new Date().toISOString()
-      );
-    }
-  }
-
-  // Verify and ensure official Brain Round 2 questions are synced
-  const brainR2OfficialCheck = db.prepare("SELECT id FROM questions WHERE game = 'brain' AND round = 2 AND question LIKE '%parallel AI calculations%'").get();
-  if (!brainR2OfficialCheck) {
-    console.log('[DB Sync] Syncing official Round 2 MCQs for Engineer’s Brain...');
-    db.prepare("DELETE FROM questions WHERE game = 'brain' AND round = 2").run();
-    const insertQ = db.prepare(`
-      INSERT INTO questions 
-      (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const r2Questions = [
-      {
-        id: 'q-b2-1',
-        game: 'brain',
-        round: 2,
-        question: 'Which hardware is especially designed for parallel AI calculations?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['GPU', 'Keyboard', 'Printer', 'Relay']),
-        answer: 'GPU',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-2',
-        game: 'brain',
-        round: 2,
-        question: 'A combinational circuit has no:',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['Inputs', 'Outputs', 'Memory', 'Logic gates']),
-        answer: 'Memory',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-3',
-        game: 'brain',
-        round: 2,
-        question: 'if x + (1/x) = 3 ,  then find  [ x^2 + (1/x^2) ]',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['5', '10', '7', '9']),
-        answer: '7',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-4',
-        game: 'brain',
-        round: 2,
-        question: 'A combinational circuit has 4 inputs and 2 outputs. Which device could perform this function?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['4-to-2 Decoder', '4-to-2 Encoder', '4-bit Counter', '2-bit Comparator']),
-        answer: '4-to-2 Encoder',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-5',
-        game: 'brain',
-        round: 2,
-        question: 'Which memory is volatile?',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['ROM', 'Flash memory', 'RAM', 'EEPROM']),
-        answer: 'RAM',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      },
-      {
-        id: 'q-b2-6',
-        game: 'brain',
-        round: 2,
-        question: 'Two Capacitor of 6 farad  each are connected in parallel. Their equivalent resistance is:',
-        type: 'Multiple Choice',
-        options: JSON.stringify(['12 farad', '6 farad', '3 farad', '1.5 farad']),
-        answer: '12 farad',
-        timeLimit: 30,
-        basePoints: 10,
-        imageUrl: ''
-      }
-    ];
-
-    for (const q of r2Questions) {
-      insertQ.run(
-        q.id,
-        q.game,
-        q.round,
-        q.question,
-        q.type,
-        q.options,
-        q.answer,
-        q.timeLimit,
-        q.basePoints,
-        q.imageUrl,
-        new Date().toISOString()
-      );
-    }
+  for (const q of officialQuestions) {
+    upsertQ.run(
+      q.id,
+      q.game,
+      q.round,
+      q.question,
+      q.type,
+      q.options,
+      q.answer,
+      q.timeLimit,
+      q.basePoints,
+      q.imageUrl,
+      new Date().toISOString()
+    );
   }
 
   // Update initial ranks based on score

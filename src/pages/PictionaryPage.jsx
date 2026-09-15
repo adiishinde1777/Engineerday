@@ -37,6 +37,7 @@ export default function PictionaryPage({ setCurrentPage }) {
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [showSecretWord, setShowSecretWord] = useState(false);
+  const [adminSecretQuestion, setAdminSecretQuestion] = useState(null);
   const [isJudging, setIsJudging] = useState(false);
   const [judgeMessage, setJudgeMessage] = useState(null);
   const [roundResult, setRoundResult] = useState(null);
@@ -76,6 +77,21 @@ export default function PictionaryPage({ setCurrentPage }) {
 
   // Identify playing team
   const currentTeam = currentSquad || activeSessionTeam || teams.find(t => t.id === selectedTeamId);
+
+  // When admin is logged in, securely fetch unmasked question details
+  useEffect(() => {
+    if (isAuthenticated && question?.id) {
+      api.getQuestion(question.id)
+        .then(res => {
+          if (res.success && res.question) {
+            setAdminSecretQuestion(res.question);
+          }
+        })
+        .catch(console.error);
+    } else {
+      setAdminSecretQuestion(null);
+    }
+  }, [isAuthenticated, question?.id]);
 
   // Listen to socket round finished event
   useEffect(() => {
@@ -437,16 +453,16 @@ export default function PictionaryPage({ setCurrentPage }) {
       )}
 
       {/* Secret Word Display: ADMIN ONLY */}
-      {isAuthenticated && question && (
+      {isAuthenticated && (question || adminSecretQuestion) && (
         <div className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-950 text-indigo-400 border border-indigo-500/30">
-              ROUND {question.round} • {question.type || 'Schematic'}
+              ROUND {(adminSecretQuestion || question).round} • {(adminSecretQuestion || question).type || 'Schematic'}
             </span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 font-mono">Concept to Draw:</span>
               <span className="text-base font-bold text-white font-heading">
-                {showSecretWord ? question.correct_answer : '••••••••••••••••'}
+                {showSecretWord ? ((adminSecretQuestion && adminSecretQuestion.correct_answer) || question?.correct_answer || 'Secret Concept') : '••••••••••••••••'}
               </span>
             </div>
           </div>

@@ -50,6 +50,9 @@ router.get('/session/:game', (req, res) => {
       }
       if (!isAdmin) {
         delete question.correct_answer;
+        if (question.game === 'pictionary') {
+          question.question = 'Engineering Concept (Hidden from Participants)';
+        }
       }
     }
   }

@@ -30,7 +30,10 @@ export function setupSocketIO(io) {
               opts = [];
             }
             question = { ...rawQ, options: opts };
-          }
+            if (game === 'pictionary') {
+              question.question = 'Engineering Concept (Hidden from Participants)';
+              delete question.correct_answer;
+            }
         }
         let team = null;
         if (session.current_team_id) {
@@ -91,6 +94,10 @@ export function broadcastSessionState(game) {
           opts = [];
         }
         question = { ...rawQ, options: opts };
+        if (game === 'pictionary') {
+          question.question = 'Engineering Concept (Hidden from Participants)';
+          delete question.correct_answer;
+        }
       }
     }
     let team = null;
