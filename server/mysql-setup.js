@@ -134,6 +134,7 @@ export async function setupMySQL() {
     try { await connection.query('ALTER TABLE faculty ADD COLUMN deleted_at VARCHAR(64);'); } catch { }
     try { await connection.query('ALTER TABLE questions ADD COLUMN is_deleted INT NOT NULL DEFAULT 0;'); } catch { }
     try { await connection.query('ALTER TABLE questions ADD COLUMN deleted_at VARCHAR(64);'); } catch { }
+    try { await connection.query('ALTER TABLE questions MODIFY COLUMN created_at VARCHAR(64) NOT NULL;'); } catch { }
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS game_sessions (

@@ -219,7 +219,6 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
           existing.contact !== m.contact ||
           existing.registration_status !== m.registration_status ||
           existing.score !== m.score ||
-          existing.rank !== m.rank_num ||
           existing.status !== m.status ||
           (existing.is_deleted ? 1 : 0) !== targetDeleted;
 
@@ -235,7 +234,7 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
             m.password_hash || null,
             m.registration_status,
             m.score,
-            m.rank_num,
+            existing.rank || m.rank_num || 0,
             m.status,
             m.is_seed ? 1 : 0,
             targetDeleted,
@@ -243,6 +242,11 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
             existing.id
           );
           hasChanges = true;
+        }
+
+        // Keep MySQL rank_num in sync with SQLite rank without triggering diff loops
+        if (existing.rank !== undefined && m.rank_num !== existing.rank) {
+          await pool.query('UPDATE teams SET rank_num = ? WHERE id = ?', [existing.rank || 0, existing.id]);
         }
 
         // If SQLite has an active team but MySQL had is_deleted=1, also restore it in MySQL
@@ -260,6 +264,100 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
       }
     }
 
+    // Two-way Questions sync
+    try {
+      const [myQuestions] = await pool.query('SELECT * FROM questions');
+      const sqQuestions = db.prepare('SELECT * FROM questions').all();
+      const sqQMap = new Map();
+      sqQuestions.forEach(q => sqQMap.set(q.id, q));
+      const myQSet = new Set(myQuestions.map(q => q.id));
+
+      const insertQSqlite = db.prepare(`
+        INSERT INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, is_deleted, deleted_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const mq of myQuestions) {
+        if (!sqQMap.has(mq.id)) {
+          insertQSqlite.run(
+            mq.id,
+            mq.game,
+            mq.round,
+            mq.question,
+            mq.type,
+            typeof mq.options_json === 'string' ? mq.options_json : JSON.stringify(mq.options_json || []),
+            mq.correct_answer,
+            mq.time_limit || 30,
+            mq.base_points || 10,
+            mq.image_url || '',
+            mq.is_deleted ? 1 : 0,
+            mq.deleted_at || null,
+            mq.created_at ? String(mq.created_at) : new Date().toISOString()
+          );
+          hasChanges = true;
+        }
+      }
+
+      for (const sqQ of sqQuestions) {
+        if (!myQSet.has(sqQ.id)) {
+          await pool.query(`
+            INSERT INTO questions (id, game, round, question, type, options_json, correct_answer, time_limit, base_points, image_url, is_deleted, deleted_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE question = VALUES(question), correct_answer = VALUES(correct_answer), options_json = VALUES(options_json)
+          `, [
+            sqQ.id, sqQ.game, sqQ.round, sqQ.question, sqQ.type, sqQ.options_json, sqQ.correct_answer,
+            sqQ.time_limit || 30, sqQ.base_points || 10, sqQ.image_url || '', sqQ.is_deleted || 0,
+            sqQ.deleted_at || null, sqQ.created_at || new Date().toISOString()
+          ]);
+        }
+      }
+    } catch {}
+
+    // Two-way Faculty sync
+    try {
+      const [myFaculty] = await pool.query('SELECT * FROM faculty');
+      const sqFaculty = db.prepare('SELECT * FROM faculty').all();
+      const sqFMap = new Map();
+      sqFaculty.forEach(f => sqFMap.set(f.id, f));
+      const myFSet = new Set(myFaculty.map(f => f.id));
+
+      const insertFSqlite = db.prepare(`
+        INSERT INTO faculty (id, order_index, name, designation, department, profile_image, description, position_role, is_hod, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const mf of myFaculty) {
+        if (!sqFMap.has(mf.id)) {
+          insertFSqlite.run(
+            mf.id,
+            mf.order_index || 99,
+            mf.name,
+            mf.designation,
+            mf.department || '',
+            mf.profile_image || '',
+            mf.description || '',
+            mf.position_role || '',
+            mf.is_hod ? 1 : 0,
+            mf.created_at ? String(mf.created_at) : new Date().toISOString()
+          );
+          hasChanges = true;
+        }
+      }
+
+      for (const sf of sqFaculty) {
+        if (!myFSet.has(sf.id)) {
+          await pool.query(`
+            INSERT INTO faculty (id, name, designation, department, profile_image, description, position_role, is_hod, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE name = VALUES(name), designation = VALUES(designation)
+          `, [
+            sf.id, sf.name, sf.designation, sf.department || '', sf.profile_image || '',
+            sf.description || '', sf.position_role || '', sf.is_hod ? 1 : 0, sf.created_at || new Date().toISOString()
+          ]);
+        }
+      }
+    } catch {}
+
     // Save active teams to persistent JSON backup file
     savePersistentTeamsBackup();
 
@@ -272,7 +370,7 @@ export async function syncMySQLToSQLite(db, broadcastCallback = null, updateRank
       if (typeof broadcastCallback === 'function') {
         broadcastCallback();
       }
-      console.log('🔄 [MySQL Sync] Successfully synchronized teams between MySQL and website SQLite!');
+      console.log('🔄 [MySQL Sync] Successfully synchronized database records between MySQL and website SQLite!');
     }
   } catch (err) {
     if (isConnected) {
