@@ -239,7 +239,7 @@ export default function BrainControlTab() {
               Select Round & Manage Game Execution
             </h3>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              Choose which round to start (Round 1 or Round 2) and control Start / Stop / Resume.
+              Choose which round to start (Round 1, 2, or 3) and control Start / Stop / Resume.
             </p>
           </div>
 
@@ -266,8 +266,8 @@ export default function BrainControlTab() {
           </div>
         </div>
 
-        {/* 2 Interactive Round Selection Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono">
+        {/* 3 Interactive Round Selection Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono">
           
           {/* Round 1 Card */}
           <button
@@ -294,10 +294,10 @@ export default function BrainControlTab() {
               )}
             </div>
             <div className="text-sm font-bold text-white font-heading">
-              Technical Foundation MCQs
+              Fundamental Engineering & Logic
             </div>
             <p className="text-[11px] text-slate-400 font-sans mt-1">
-              Cipher Logic, C Code Output, Class-B Amplifier, Moore's Law, Geometry & Integral.
+              Resistor Opposes Flow, 2's Complement, Silicon, Sir Visvesvaraya, Family Blood Relation & Silicon Valence.
             </p>
             <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
               6 Questions • 30s per Q • 10 Pts
@@ -333,6 +333,41 @@ export default function BrainControlTab() {
             </div>
             <p className="text-[11px] text-slate-400 font-sans mt-1">
               AI GPU Hardware, Combinational Circuits, Algebra, 4-to-2 Encoder, RAM & Capacitors.
+            </p>
+            <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
+              6 Questions • 30s per Q • 10 Pts
+            </div>
+          </button>
+
+          {/* Round 3 Card */}
+          <button
+            type="button"
+            onClick={() => setSelectedRound(3)}
+            disabled={isRunning}
+            className={`p-4 rounded-2xl text-left border transition-all cursor-pointer ${
+              selectedRound === 3
+                ? 'bg-cyan-950/60 border-cyan-400 shadow-lg shadow-cyan-500/20 ring-2 ring-cyan-500/40'
+                : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 opacity-80'
+            } ${isRunning && session?.round !== 3 ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                selectedRound === 3 ? 'bg-cyan-400 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}>
+                Round 3
+              </span>
+              {session?.round === 3 && isRunning && (
+                <span className="text-[10px] font-bold text-emerald-400 animate-pulse">● LIVE NOW</span>
+              )}
+              {session?.round === 3 && isStopped && (
+                <span className="text-[10px] font-bold text-amber-400 animate-pulse">⏸ STOPPED</span>
+              )}
+            </div>
+            <div className="text-sm font-bold text-white font-heading">
+              Advanced Logic, Circuits & Calculus
+            </div>
+            <p className="text-[11px] text-slate-400 font-sans mt-1">
+              ELECTRONICS Cipher, C Code Logic, Class-B Amplifier, Moore's Law, Geometry & Integral Equations.
             </p>
             <div className="text-[10px] text-cyan-300 font-bold mt-2 pt-2 border-t border-slate-800/80">
               6 Questions • 30s per Q • 10 Pts

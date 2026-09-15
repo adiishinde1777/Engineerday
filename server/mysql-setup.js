@@ -220,7 +220,8 @@ export async function setupMySQL() {
         // Migrate Questions
         const allowedBrainIds = [
           'q-b1-1', 'q-b1-2', 'q-b1-3', 'q-b1-4', 'q-b1-5', 'q-b1-6',
-          'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6'
+          'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6',
+          'q-b3-1', 'q-b3-2', 'q-b3-3', 'q-b3-4', 'q-b3-5', 'q-b3-6'
         ];
         try {
           await connection.query(

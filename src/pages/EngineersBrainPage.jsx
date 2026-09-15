@@ -965,6 +965,18 @@ export default function EngineersBrainPage({ setCurrentPage }) {
                 <span>Round 2 (6 Qs)</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => { setSelectedRound(3); setCurrentQIndex(0); }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  selectedRound === 3 
+                    ? 'bg-gradient-to-r from-cyan-400 to-sky-400 text-slate-950 shadow-lg shadow-cyan-500/30 ring-2 ring-cyan-400/50' 
+                    : 'bg-slate-950 text-slate-300 border border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <span>Round 3 (6 Qs)</span>
+              </button>
+
               {isAuthenticated && (
                 <button
                   type="button"

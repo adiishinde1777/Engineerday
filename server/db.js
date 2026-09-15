@@ -411,15 +411,15 @@ function seedDefaultData() {
 
   // Seed and enforce exact questions for Engineer's Brain (6 in Round 1, 6 in Round 2) and Engineering Pictionary
   const officialQuestions = [
-    // BRAIN ROUND 1 (Official Tournament MCQs)
+    // BRAIN ROUND 1 (Fundamental Electronics & Engineering Logic - NEW)
     {
       id: 'q-b1-1',
       game: 'brain',
       round: 1,
-      question: 'If ELECTRONICS is coded as FMFDUSPOJDT, how is DIGITAL coded using the same pattern?',
-      type: 'Logical Reasoning',
-      options: JSON.stringify(['EJHJUBM', 'EJGJUBM', 'EJFJUBM', 'DJHITZL']),
-      answer: 'EJHJUBM',
+      question: 'Which component opposes the flow of electric current?',
+      type: 'Basic Electronics',
+      options: JSON.stringify(['Capacitor', 'Resistor', 'Inductor', 'Diode']),
+      answer: 'Resistor',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
@@ -428,10 +428,10 @@ function seedDefaultData() {
       id: 'q-b1-2',
       game: 'brain',
       round: 1,
-      question: 'Find the Output:\n\n#include <stdio.h>\n\nint main() {\n    int A = 1, B = 0, C = 1, D = 1;\n\n    int X = A && B;\n    int Y = C || D;\n    int Z = !(X || Y);\n    int P = Z ^ A;\n    int Q = P && D;\n\n    printf("%d", Q);\n\n    return 0;\n}',
-      type: 'C Programming',
-      options: JSON.stringify(['0', '1', '2', 'Error']),
-      answer: '1',
+      question: "A 4-bit binary number is 1011. What is its 2's complement?",
+      type: 'Digital Electronics',
+      options: JSON.stringify(['0100', '0101', '1010', '0110']),
+      answer: '0101',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
@@ -440,10 +440,10 @@ function seedDefaultData() {
       id: 'q-b1-3',
       game: 'brain',
       round: 1,
-      question: 'For an ideal Class-B push-pull amplifier, the maximum theoretical efficiency is approximately:',
-      type: 'Analog Electronics',
-      options: JSON.stringify(['25%', '75.5%', '78.5%', '100%']),
-      answer: '78.5%',
+      question: 'Which material is most widely used in semiconductor manufacturing?',
+      type: 'Semiconductor / VLSI',
+      options: JSON.stringify(['Copper', 'Silicon', 'Aluminium', 'Silver']),
+      answer: 'Silicon',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
@@ -452,15 +452,15 @@ function seedDefaultData() {
       id: 'q-b1-4',
       game: 'brain',
       round: 1,
-      question: 'What does Moore’s Law state?',
-      type: 'Semiconductor / VLSI',
+      question: "Engineers' Day in India is celebrated on the birth anniversary of which engineer?",
+      type: 'Famous Engineers',
       options: JSON.stringify([
-        'Processor speed doubles every 5 years',
-        'The number of transistors on an integrated circuit approximately doubles every 18–24 months',
-        'Power consumption doubles every 6 months',
-        'The number of transistors on an integrated circuit approximately doubles every 6 months'
+        'Dr. A. P. J. Abdul Kalam',
+        'Sir M. Visvesvaraya',
+        'Homi J. Bhabha',
+        'Vikram Sarabhai'
       ]),
-      answer: 'The number of transistors on an integrated circuit approximately doubles every 18–24 months',
+      answer: 'Sir M. Visvesvaraya',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
@@ -469,25 +469,25 @@ function seedDefaultData() {
       id: 'q-b1-5',
       game: 'brain',
       round: 1,
-      question: 'In the given figure if PQ || ST, angle PQR = 110° and angle RST = 130°, then angle QRS = ?',
-      type: 'Engineering Geometry',
-      options: JSON.stringify(['80', '60', '30', '100']),
-      answer: '60',
+      question: 'Pointing to a man, Rahul said: “He is the son of the only son of my grandfather.” Who is the man to Rahul?',
+      type: 'Logical Reasoning',
+      options: JSON.stringify(['Father', 'Brother', 'Uncle', 'Cousin']),
+      answer: 'Brother',
       timeLimit: 30,
       basePoints: 10,
-      imageUrl: '/images/brain/q-b1-5.jpg'
+      imageUrl: ''
     },
     {
       id: 'q-b1-6',
       game: 'brain',
       round: 1,
-      question: 'Solve the definite integral shown in the figure:',
-      type: 'Applied Mathematics',
-      options: JSON.stringify(['2', '-1', '-2', '1']),
-      answer: '-1',
+      question: 'What is the valence electron count of silicon?',
+      type: 'Basic Electronics',
+      options: JSON.stringify(['4', '8', '5', 'None of the above']),
+      answer: '4',
       timeLimit: 30,
       basePoints: 10,
-      imageUrl: '/images/brain/q-b1-6.jpg'
+      imageUrl: ''
     },
 
     // BRAIN ROUND 2 (Applied Engineering & Hardware)
@@ -564,113 +564,122 @@ function seedDefaultData() {
       imageUrl: ''
     },
 
-    // PICTIONARY ROUND 1 (Tools & Core Concepts - Words hidden from participants)
+    // BRAIN ROUND 3 (Shifted from previous Round 1: Advanced Circuits & Logic)
     {
-      id: 'q-p1-1',
-      game: 'pictionary',
-      round: 1,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'Electronics',
-      options: '[]',
-      answer: 'Oscilloscope',
+      id: 'q-b3-1',
+      game: 'brain',
+      round: 3,
+      question: 'If ELECTRONICS is coded as FMFDUSPOJDT, how is DIGITAL coded using the same pattern?',
+      type: 'Logical Reasoning',
+      options: JSON.stringify(['EJHJUBM', 'EJGJUBM', 'EJFJUBM', 'DJHITZL']),
+      answer: 'EJHJUBM',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
     },
     {
-      id: 'q-p1-2',
-      game: 'pictionary',
-      round: 1,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'Mechanical / Electrical',
-      options: '[]',
-      answer: 'Wind Turbine',
+      id: 'q-b3-2',
+      game: 'brain',
+      round: 3,
+      question: 'Find the Output:\n\n#include <stdio.h>\n\nint main() {\n    int A = 1, B = 0, C = 1, D = 1;\n\n    int X = A && B;\n    int Y = C || D;\n    int Z = !(X || Y);\n    int P = Z ^ A;\n    int Q = P && D;\n\n    printf("%d", Q);\n\n    return 0;\n}',
+      type: 'C Programming',
+      options: JSON.stringify(['0', '1', '2', 'Error']),
+      answer: '1',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
     },
     {
-      id: 'q-p1-3',
-      game: 'pictionary',
-      round: 1,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'Civil',
-      options: '[]',
-      answer: 'Suspension Bridge',
+      id: 'q-b3-3',
+      game: 'brain',
+      round: 3,
+      question: 'For an ideal Class-B push-pull amplifier, the maximum theoretical efficiency is approximately:',
+      type: 'Analog Electronics',
+      options: JSON.stringify(['25%', '75.5%', '78.5%', '100%']),
+      answer: '78.5%',
       timeLimit: 30,
       basePoints: 10,
       imageUrl: ''
+    },
+    {
+      id: 'q-b3-4',
+      game: 'brain',
+      round: 3,
+      question: 'What does Moore’s Law state?',
+      type: 'Semiconductor / VLSI',
+      options: JSON.stringify([
+        'Processor speed doubles every 5 years',
+        'The number of transistors on an integrated circuit approximately doubles every 18–24 months',
+        'Power consumption doubles every 6 months',
+        'The number of transistors on an integrated circuit approximately doubles every 6 months'
+      ]),
+      answer: 'The number of transistors on an integrated circuit approximately doubles every 18–24 months',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: ''
+    },
+    {
+      id: 'q-b3-5',
+      game: 'brain',
+      round: 3,
+      question: 'In the given figure if PQ || ST, angle PQR = 110° and angle RST = 130°, then angle QRS = ?',
+      type: 'Engineering Geometry',
+      options: JSON.stringify(['80', '60', '30', '100']),
+      answer: '60',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: '/images/brain/q-b3-5.jpg'
+    },
+    {
+      id: 'q-b3-6',
+      game: 'brain',
+      round: 3,
+      question: 'Solve the definite integral shown in the figure:',
+      type: 'Applied Mathematics',
+      options: JSON.stringify(['2', '-1', '-2', '1']),
+      answer: '-1',
+      timeLimit: 30,
+      basePoints: 10,
+      imageUrl: '/images/brain/q-b3-6.jpg'
     },
 
-    // PICTIONARY ROUND 2 (Modern Tech & Hardware - Words hidden from participants)
-    {
-      id: 'q-p2-1',
-      game: 'pictionary',
-      round: 2,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'VLSI / Semiconductor',
-      options: '[]',
-      answer: 'Microchip',
-      timeLimit: 30,
-      basePoints: 10,
-      imageUrl: ''
-    },
-    {
-      id: 'q-p2-2',
-      game: 'pictionary',
-      round: 2,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'Robotics',
-      options: '[]',
-      answer: 'Robotic Arm',
-      timeLimit: 30,
-      basePoints: 10,
-      imageUrl: ''
-    },
-    {
-      id: 'q-p2-3',
-      game: 'pictionary',
-      round: 2,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'Telecommunication',
-      options: '[]',
-      answer: 'Satellite Dish',
-      timeLimit: 30,
-      basePoints: 10,
-      imageUrl: ''
-    },
+    // PICTIONARY ITEMS (Words from official list - Hidden from participants & projector)
+    // Round 1
+    { id: 'q-p1-1', game: 'pictionary', round: 1, question: 'Secret Item #1 (Hidden)', type: 'Vehicle', options: '[]', answer: 'Aeroplane', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-2', game: 'pictionary', round: 1, question: 'Secret Item #2 (Hidden)', type: 'Automobile', options: '[]', answer: 'Car', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-3', game: 'pictionary', round: 1, question: 'Secret Item #3 (Hidden)', type: 'Gadget', options: '[]', answer: 'Mobile Phone', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-4', game: 'pictionary', round: 1, question: 'Secret Item #4 (Hidden)', type: 'Electronics', options: '[]', answer: 'Laptop', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-5', game: 'pictionary', round: 1, question: 'Secret Item #5 (Hidden)', type: 'Furniture', options: '[]', answer: 'Chair', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-6', game: 'pictionary', round: 1, question: 'Secret Item #6 (Hidden)', type: 'Furniture', options: '[]', answer: 'Table', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-7', game: 'pictionary', round: 1, question: 'Secret Item #7 (Hidden)', type: 'Object', options: '[]', answer: 'Umbrella', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p1-8', game: 'pictionary', round: 1, question: 'Secret Item #8 (Hidden)', type: 'Instrument', options: '[]', answer: 'Clock', timeLimit: 30, basePoints: 10, imageUrl: '' },
 
-    // PICTIONARY ROUND 3 (Advanced Systems - Words hidden from participants)
-    {
-      id: 'q-p3-1',
-      game: 'pictionary',
-      round: 3,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'AI / Computer',
-      options: '[]',
-      answer: 'Neural Network',
-      timeLimit: 30,
-      basePoints: 15,
-      imageUrl: ''
-    },
-    {
-      id: 'q-p3-2',
-      game: 'pictionary',
-      round: 3,
-      question: 'Secret Engineering Concept (Hidden from Participants)',
-      type: 'Engineering Tools',
-      options: '[]',
-      answer: '3D Printer',
-      timeLimit: 30,
-      basePoints: 15,
-      imageUrl: ''
-    }
+    // Round 2
+    { id: 'q-p2-1', game: 'pictionary', round: 2, question: 'Secret Item #9 (Hidden)', type: 'Optics', options: '[]', answer: 'Camera', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-2', game: 'pictionary', round: 2, question: 'Secret Item #10 (Hidden)', type: 'Appliance', options: '[]', answer: 'Television', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-3', game: 'pictionary', round: 2, question: 'Secret Item #11 (Hidden)', type: 'Electrical', options: '[]', answer: 'Fan', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-4', game: 'pictionary', round: 2, question: 'Secret Item #12 (Hidden)', type: 'Appliance', options: '[]', answer: 'Refrigerator', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-5', game: 'pictionary', round: 2, question: 'Secret Item #13 (Hidden)', type: 'Electronics', options: '[]', answer: 'Television Remote', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-6', game: 'pictionary', round: 2, question: 'Secret Item #14 (Hidden)', type: 'Object', options: '[]', answer: 'School Bag', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-7', game: 'pictionary', round: 2, question: 'Secret Item #15 (Hidden)', type: 'Safety Gear', options: '[]', answer: 'Helmet', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p2-8', game: 'pictionary', round: 2, question: 'Secret Item #16 (Hidden)', type: 'Object', options: '[]', answer: 'Water Bottle', timeLimit: 30, basePoints: 10, imageUrl: '' },
+
+    // Round 3
+    { id: 'q-p3-1', game: 'pictionary', round: 3, question: 'Secret Item #17 (Hidden)', type: 'Hardware', options: '[]', answer: 'Key', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-2', game: 'pictionary', round: 3, question: 'Secret Item #18 (Hidden)', type: 'Hardware', options: '[]', answer: 'Lock', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-3', game: 'pictionary', round: 3, question: 'Secret Item #19 (Hidden)', type: 'Tools', options: '[]', answer: 'Scissors', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-4', game: 'pictionary', round: 3, question: 'Secret Item #20 (Hidden)', type: 'Tools', options: '[]', answer: 'Hammer', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-5', game: 'pictionary', round: 3, question: 'Secret Item #21 (Hidden)', type: 'Tools', options: '[]', answer: 'Screwdriver', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-6', game: 'pictionary', round: 3, question: 'Secret Item #22 (Hidden)', type: 'Electrical', options: '[]', answer: 'Light Bulb', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-7', game: 'pictionary', round: 3, question: 'Secret Item #23 (Hidden)', type: 'Power', options: '[]', answer: 'Battery', timeLimit: 30, basePoints: 10, imageUrl: '' },
+    { id: 'q-p3-8', game: 'pictionary', round: 3, question: 'Secret Item #24 (Hidden)', type: 'Structure', options: '[]', answer: 'Bridge', timeLimit: 30, basePoints: 10, imageUrl: '' }
   ];
 
   // 1. Delete any excess or outdated brain questions
   const allowedBrainIds = [
     'q-b1-1', 'q-b1-2', 'q-b1-3', 'q-b1-4', 'q-b1-5', 'q-b1-6',
-    'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6'
+    'q-b2-1', 'q-b2-2', 'q-b2-3', 'q-b2-4', 'q-b2-5', 'q-b2-6',
+    'q-b3-1', 'q-b3-2', 'q-b3-3', 'q-b3-4', 'q-b3-5', 'q-b3-6'
   ];
   db.prepare(`
     DELETE FROM questions 

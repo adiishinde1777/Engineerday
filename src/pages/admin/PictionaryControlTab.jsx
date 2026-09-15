@@ -31,7 +31,7 @@ export default function PictionaryControlTab() {
   const [questions, setQuestions] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [selectedQuestionId, setSelectedQuestionId] = useState('');
-  const [showSecretWord, setShowSecretWord] = useState(true);
+  const [showSecretWord, setShowSecretWord] = useState(false);
   const [judgeMessage, setJudgeMessage] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -235,10 +235,15 @@ export default function PictionaryControlTab() {
               <button
                 type="button"
                 onClick={() => setShowSecretWord(!showSecretWord)}
-                className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+                className={`text-xs font-mono px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-all cursor-pointer ${
+                  showSecretWord 
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' 
+                    : 'bg-indigo-950/80 text-indigo-300 border-indigo-500/40 hover:bg-indigo-900'
+                }`}
+                title={showSecretWord ? "Hide secret words from audience/projector" : "Reveal words on admin screen"}
               >
-                {showSecretWord ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                <span>{showSecretWord ? 'Hide Word' : 'Reveal Word'}</span>
+                {showSecretWord ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>{showSecretWord ? '🔒 Hide Words (Projector Safe)' : '👁️ Reveal Words (Admin Secret)'}</span>
               </button>
             </label>
 
@@ -249,17 +254,29 @@ export default function PictionaryControlTab() {
             >
               {questions.map((q, idx) => (
                 <option key={q.id} value={q.id}>
-                  Round {q.round} #{idx + 1}: {q.correct_answer} ({q.type || 'Schematic'})
+                  {showSecretWord 
+                    ? `Round ${q.round} #${idx + 1}: ${q.correct_answer} (${q.type || 'Object'})`
+                    : `Round ${q.round} • Secret Item #${idx + 1} (${q.type || 'Object'}) [HIDDEN]`}
                 </option>
               ))}
             </select>
 
             {activeQuestion && (
-              <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs font-mono flex items-center justify-between">
-                <span className="text-slate-400">Secret Word:</span>
-                <span className="text-sm font-black text-amber-300 font-heading">
-                  {showSecretWord ? activeQuestion.correct_answer : '••••••••••••••••'}
-                </span>
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-indigo-500/30 text-xs font-mono flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Secret Word (Projector Protection):</span>
+                  <span className={`text-base font-black font-heading ${showSecretWord ? 'text-amber-300' : 'text-slate-500 tracking-widest'}`}>
+                    {showSecretWord ? activeQuestion.correct_answer : '••••••••••••••••'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSecretWord(!showSecretWord)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                >
+                  {showSecretWord ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showSecretWord ? 'Conceal' : 'Peek Word'}</span>
+                </button>
               </div>
             )}
           </div>
